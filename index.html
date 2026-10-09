@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>网页小游戏合集</title>
+<style>
+  :root {
+    --ink: #16273a;
+    --soft: #55697a;
+    --line: #dfe5e9;
+    --accent: #12706c;
+    --bg: #f5f7f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 24px;
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  .sub { color: var(--soft); margin: 0 0 40px; }
+  .card {
+    display: block;
+    padding: 24px 26px;
+    margin-bottom: 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .15s, transform .15s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card h2 { margin: 0 0 6px; font-size: 21px; }
+  .card p { margin: 0; color: var(--soft); font-size: 15px; }
+  .tag {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 2px 10px;
+    font-size: 13px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+  }
+  footer { margin-top: 40px; color: var(--soft); font-size: 14px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>网页小游戏合集</h1>
+  <p class="sub">两个单文件网页游戏，点开即玩，不需要安装。</p>
+
+  <a class="card" href="go-game/index.html">
+    <h2>围棋 · Go</h2>
+    <p>支持单人对战电脑与双人模式，鼠标点交叉点落子，手机上也能下。</p>
+    <span class="tag">棋类对弈</span>
+  </a>
+
+  <a class="card" href="spire-wanderer/index.html">
+    <h2>尖塔行者 · Spire Wanderer</h2>
+    <p>卡牌构筑 Roguelike，爬塔、组牌、打怪、捡遗物，规则与 C 版一致。</p>
+    <span class="tag">卡牌 Roguelike</span>
+  </a>
+
+  <footer>
+    源码托管在 <a href="https://github.com/liuhuize0711git">GitHub</a>。
+  </footer>
+</div>
+</body>
+</html>

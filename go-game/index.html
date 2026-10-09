@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>围棋 · Go（单人 / 双人）</title>
+<style>
+  :root{
+    --bg:#0f1216;
+    --panel:#191e26;
+    --panel2:#20262f;
+    --line:#2e3644;
+    --txt:#e9e7e3;
+    --dim:#9aa4b8;
+    --gold:#e0b25c;
+    --black:#1b1b1b;
+    --red:#e05c5c;
+    --green:#5fbf7a;
+    --blue:#5b9ae0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;min-height:100%}
+  body{
+    background:radial-gradient(1100px 700px at 50% -10%,#1c222c 0%,var(--bg) 60%);
+    color:var(--txt);font-family:"Microsoft YaHei","PingFang SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:15px;line-height:1.5;display:flex;justify-content:center;
+  }
+  #app{width:100%;max-width:1080px;padding:12px 14px 24px;display:flex;flex-direction:column;gap:12px}
+  h1,h2,h3{margin:0;font-weight:600}
+  .hidden{display:none !important}
+  .dim{color:var(--dim)}
+  .gold{color:var(--gold)}
+  .red{color:var(--red)}
+  .green{color:var(--green)}
+  .blue{color:var(--blue)}
+  .btn{
+    background:linear-gradient(#2a3346,#1d2534);border:1px solid var(--line);color:var(--txt);
+    padding:7px 13px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;
+    transition:transform .08s,border-color .15s;
+  }
+  .btn:hover{border-color:var(--gold);transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn.primary{background:linear-gradient(#4a3a1c,#2f2513);border-color:#7a5f2a;color:#f2dfae}
+  .btn.small{padding:5px 10px;font-size:13px}
+  .btn.on{border-color:var(--gold);background:linear-gradient(#3d3320,#28200f);color:#f2dfae}
+  .btn:disabled{opacity:.4;cursor:default;transform:none}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .hr{height:1px;background:var(--line);margin:10px 0}
+  header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .title{font-size:22px;letter-spacing:3px;color:var(--gold)}
+  .sub{font-size:12px;color:var(--dim)}
+  main{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+  #boardWrap{position:relative;flex:0 0 auto}
+  canvas#board{
+    display:block;border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.45);
+    cursor:pointer;touch-action:manipulation;max-width:100%;
+  }
+  #side{flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:10px}
+  .statusBox{display:flex;align-items:center;gap:10px}
+  .stoneDot{width:20px;height:20px;border-radius:50%;border:1px solid #000;background:#111;flex:0 0 auto}
+  .stoneDot.w{background:#f4f2ee;border-color:#999}
+  #thinking{font-size:13px;color:var(--dim);min-height:18px}
+  #bar{height:4px;background:#242b39;border-radius:2px;overflow:hidden}
+  #barIn{height:100%;width:0;background:linear-gradient(90deg,#7a5f2a,var(--gold));transition:width .2s}
+  .kv{display:flex;justify-content:space-between;font-size:13px;gap:8px}
+  .kv b{font-weight:600}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .legend{font-size:12px;color:var(--dim);line-height:1.7}
+  #result{border-color:#7a5f2a;background:linear-gradient(#232012,#191e26)}
+  #resultTitle{font-size:17px;font-weight:600}
+  .bigNum{font-size:26px;font-weight:700;color:var(--gold)}
+  table.score{width:100%;border-collapse:collapse;font-size:14px}
+  table.score td{padding:3px 0}
+  table.score td:last-child{text-align:right;font-weight:600}
+  .tag{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:1px 7px}
+  @media (max-width:820px){
+    main{flex-direction:column;align-items:stretch}
+    #side{min-width:0}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <div class="title">围 棋</div>
+      <div class="sub">单人（有 AI）/ 双人 · 点击交叉点落子 · 随时可以结束对局数子</div>
+    </div>
+    <div class="row">
+      <span class="tag" id="ruleTag">中国规则 · 贴目 7.5</span>
+      <span class="tag" id="sizeTag">9 路</span>
+      <button class="btn small" id="btnHelp">说明</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="boardWrap">
+      <canvas id="board" width="560" height="560"></canvas>
+    </div>
+
+    <div id="side">
+      <div class="panel">
+        <div class="statusBox">
+          <span class="stoneDot" id="turnDot"></span>
+          <div>
+            <div id="turnText" style="font-weight:600">轮到黑棋</div>
+            <div id="thinking" class="dim"></div>
+          </div>
+        </div>
+        <div id="bar"><div id="barIn"></div></div>
+        <div class="hr"></div>
+        <div class="kv"><span class="dim">手数</span><b id="moveNo">0</b></div>
+        <div class="kv"><span class="dim">黑棋提子</span><b id="capB">0</b></div>
+        <div class="kv"><span class="dim">白棋提子</span><b id="capW">0</b></div>
+        <div class="kv"><span class="dim">上一手</span><b id="lastMove">—</b></div>
+      </div>
+
+      <div class="panel">
+        <div class="dim" style="margin-bottom:6px">对局模式</div>
+        <div class="seg" id="modeSeg">
+          <button class="btn small on" data-mode="ai">单人（AI）</button>
+          <button class="btn small" data-mode="pvp">双人对战</button>
+        </div>
+        <div class="hr"></div>
+        <div class="dim" style="margin-bottom:6px" id="sideLabel">我执</div>
+        <div class="seg" id="colorSeg">
+          <button class="btn small on" data-color="1">黑棋（先手）</button>
+          <button class="btn small" data-color="2">白棋（后手）</button>
+        </div>
+        <div class="hr"></div>
+        <div class="dim" style="margin-bottom:6px">AI 强度（每手思考时间）</div>
+        <div class="seg" id="levelSeg">
+          <button class="btn small" data-level="600">快</button>
+          <button class="btn small on" data-level="1800">普通</button>
+          <button class="btn small" data-level="3500">强</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="dim" style="margin-bottom:6px">棋谱（AI 自对弈学出来的局部形状 → 胜率）</div>
+        <div class="kv"><span class="dim">棋谱棋形数</span><b id="bookSize">0</b></div>
+        <div class="kv"><span class="dim">本手命中棋谱</span><b id="bookHit">—</b></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn small" id="btnLearn20">自对弈 +20 局</button>
+          <button class="btn small" id="btnLearn60">+60 局</button>
+          <button class="btn small" id="btnExport">导出棋谱文件</button>
+          <button class="btn small" id="btnImport">导入棋谱文件</button>
+          <button class="btn small" id="btnClearBook">清空棋谱</button>
+        </div>
+        <input type="file" id="fileBook" accept="application/json,.json" class="hidden">
+        <div id="learnInfo" class="dim" style="font-size:12px;margin-top:6px">
+          棋谱用「以落子点为中心的 5×5 局部棋形」做索引。局部形状和棋谱里的一致、
+          而且那手棋在自对弈里胜率高时，AI 就会优先考虑它。
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <button class="btn primary" id="btnNew">新的一局</button>
+          <button class="btn" id="btnUndo">悔棋</button>
+          <button class="btn" id="btnPass">停一手</button>
+          <button class="btn" id="btnEstimate">形势判断</button>
+          <button class="btn" id="btnEnd">结束对局（数子）</button>
+          <button class="btn small" id="btnResign">认输</button>
+        </div>
+        <div class="hr"></div>
+        <div class="row">
+          <button class="btn small" id="btnShowMap">显示地盘估算</button>
+          <button class="btn small" id="btnShowCoord">显示坐标</button>
+        </div>
+        <div class="hr"></div>
+        <div class="legend" id="legend">
+          点击棋盘交叉点落子。<b>单人模式</b>下你选黑白、AI 走另一边；<b>结束对局</b>会清点死子并数目。
+          双人模式两个人轮流点同一台设备即可。
+        </div>
+      </div>
+
+      <div class="panel hidden" id="result">
+        <div id="resultTitle" class="gold">形势判断</div>
+        <div class="hr"></div>
+        <table class="score">
+          <tr><td>黑棋（子 + 地）</td><td id="rBlack">—</td></tr>
+          <tr><td>白棋（子 + 地，含贴目 <span id="rKomi">7.5</span>）</td><td id="rWhite">—</td></tr>
+          <tr><td>差距</td><td id="rDiff">—</td></tr>
+          <tr><td>估算黑胜率</td><td id="rWin">—</td></tr>
+          <tr><td>未定区域</td><td id="rDisp">—</td></tr>
+        </table>
+        <div class="hr"></div>
+        <div class="dim" id="resultNote"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn small primary" id="btnContinue">继续下棋</button>
+          <button class="btn small" id="btnNew2">新的一局</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+/* 自动生成：node selfplay.js …（AI 自对弈棋谱） */
+const GO_BOOK = {"v":1,"games":400,"msPerMove":6,"komi":7.5,"board":9,"blackWinRate":0.37,"minGames":3,"entries":{"BOOOOOOOOOOOOOOOOOOOOOOOOO":[152,413],"WOOOOOOOBOOOOOOOOOOOOOOOOO":[215,335],"BOOBOOOOWOOOOOOOOOOOOOOOOO":[43,117],"BOOOOOOOBWOOOOOOOOOOOOOOOO":[30,104],"BOOOOOOOOOOOOOBWOOOOOOOOOO":[30,70],"BOOOOOOBOOOOWOOOOOOOOOOOOO":[25,50],"WOBOOOOWOOOOBOOOOOOOOOOOOO":[29,47],"WOOOOOOOOOOOOOBWOOOOOOOOOO":[29,45],"WOOOOOOBBOOOWOOOOOOOOOOOOO":[30,44],"W#####OOOOOOOOOOOOBOOOOOOO":[24,43],"WOOBWOOOBOOOOOOOOOOOOOOOOO":[20,29],"BOOBWOOOBWOOOOOOOOOOOOOOOO":[9,28],"WOBWOOOOBOOOOOOOOOOOOOOOOO":[14,23],"B############OBB##BOB##OBB":[15,23],"WOOOOOOOOOOOOOOOOOOOOOOOOO":[12,22],"WOOBOOOOWOOOOOOOOOOOOOOOOO":[12,22],"B############OBB##BBB##BBB":[11,21],"BOBWOOOBWOOOOOOOOOOOOOOOOO":[8,20],"BOOOOOOBOOOOWOOOOBWOOOOOOO":[7,20],"W############OWW##WWO##WWW":[19,20],"WOOBOOOOBOOOOOOOOOOOOOOOOO":[8,19],"WOOOOOOOBWOOOOBOOOOOOOOOOO":[8,18],"WOBBOOOOWOOOOOOOOOOOOOOOOO":[13,17],"B#####OOOOOOOOOOOOBWOOOOOO":[3,17],"B###########BOBB#BBBB#BBBB":[8,17],"B############OBB##BOB##BBB":[12,16],"BOBWOOOWBOOOOOOOOOOOOOOOOO":[10,16],"B############OBB##WBB##BBB":[6,16],"WOOOOOOBBWOOOOOOOOOOOOOOOO":[10,15],"BOOBWOOOWBOOOOOOOOOOOOOOOO":[7,15],"WOOOOOOOBBWOOOOOOOOOOOOOOO":[13,15],"WOBOOOOBOOOOWOOOOOOOOOOOOO":[8,15],"W############OWW##WWW##WWW":[13,15],"WOBOOOOWBOOOOOOOOOOOOOOOOO":[8,15],"BOBBOOOWWOOOOOOOOOOOOOOOOO":[5,15],"WOOBOOOOOOOOOOOOOOOOOOOOOO":[10,14],"W############OWO##WWW##WWW":[13,14],"B############OBB##BBB##BOB":[7,14],"BOOOOOOOOBWOOOBWOOOOOOOOOO":[6,14],"B##########BBOBBBBBOBBBBBB":[11,14],"W############OBW##WWW##WWW":[10,14],"B##########BBOBOBBBBBBBBBB":[10,14],"W#####OOOOOOOOOOOBWBOOOBWO":[5,13],"B############OBB##BBB##OBB":[8,12],"B############OOB##WBB##BBB":[4,12],"W############OWW##WOW##WWW":[12,12],"WOBWOOOBWOOOBOOOOOOOOOOOOO":[7,12],"B##########BBOBBBBBBOBBBBB":[11,12],"BOOOOOOOOOOOOOBWOOOOWOOOOO":[2,12],"WOOOOOOBOOOOWOOOOBOOOOOOOO":[7,12],"WOOBOOOBWOOOOOOOOOOOOOOOOO":[8,11],"B############OBO##WBB##BBB":[4,11],"BOBOOOOWOOOOBOOOOOOOOOOOOO":[6,11],"B#####OOOOOOOOOOOOOOOOOOOO":[6,11],"B#####OOOOOOOOOOOBWOOOOOOO":[4,11],"WOBBOOOWWOOOBOOOOOOOOOOOOO":[8,11],"W##########WWOWWWOWWWWWWWW":[10,10],"WOBWOOOWBOOOBOOOOOOOOOOOOO":[4,10],"B##########BBOBOBOBOBBBBBB":[9,10],"B############OBB##WBB##BOB":[7,10],"B##########BBOBBBOBBOBBBBB":[9,10],"W#####OOOOOOBOOOOWBOOOOOOO":[6,10],"WOOBWOOOBWOOOOBOOOOOOOOOOO":[6,10],"B###########BOBB#BBBB#BOBB":[7,10],"B############OBB##WWB##BBB":[5,9],"W###########WOWW#WWWW#WWWW":[6,9],"BOOOOOOOOOOOOOOOOOWOOOOWOO":[5,9],"B############OBO##WWB##BBB":[5,9],"B############OBB##WBO##BBB":[6,9],"B##########BBOBBBBBBBBBBOB":[8,9],"BOBOOOOBWOOOWOOOOOOOOOOOOO":[3,9],"W##########WWOWWWWWWWWWWWW":[9,9],"W############OBW##WBW##WWW":[8,9],"W##########OWOWWWWWWWWWWWW":[7,9],"B##########BBOBBBOBOBBBBBB":[8,9],"W############OBW##OWW##OWW":[6,9],"BOOBBWOOBWWOOOBWOOOOOOOOOO":[5,9],"B###########BOBB#BBOB#BBBB":[8,9],"B############OOO##WBB##WWB":[5,8],"WOBBOOOBWOOOWOOOOOOOOOOOOO":[4,8],"B############OBB##WWB##WWB":[5,8],"B###########OOWB#OOBO#OOBB":[4,8],"B############OBB##BBB##WWB":[4,8],"W############OBB##WBB##WWB":[4,8],"B###########BOBB#OBBB#BBBB":[3,8],"BOBOOOOWOOOOBOOOOWOOOOOOOO":[2,8],"B############OOO##WBB##BBB":[3,8],"W############OWO##WOW##WWW":[6,8],"W##########OWOWWWOWWWWWWWW":[7,8],"B############OOO##WBO##BBB":[3,8],"BOBWOOOBOOOOWOOOOOOOOOOOOO":[2,8],"BOBWOOWWBOOOBOOOOOOOOOOOOO":[4,8],"W#####OOOOOOOOWOOOBWBOOWBB":[4,8],"B##########OOOOOOOBOOOOBWW":[4,8],"WOOOOOOOOOOOOOBWOOOOWOOOOO":[4,8],"BOBOOOOWOOOOOOOOOOOOOOOOOO":[3,8],"B##########BBOBOBOBBBBBBBB":[7,8],"W############OBW##OWW##OWB":[2,8],"B###########BOBB#BBBO#BBBB":[7,8],"W#####OOOOOOBOOOOBWOOOOOOO":[7,8],"W##########WWOWWOWWOWWWWWW":[8,8],"BOOOOOOOOOOOOOOOOOWOOOOOOO":[1,7],"BOOOOOOOOOOOOOOOOWBBWOOOOO":[6,7],"BOOBWWOOBBWOOOOOOOOOOOOOOO":[4,7],"B##########BBOBOBBBOBBBBBB":[6,7],"B#####OOOOOOOOOOOBWBOOWBWO":[5,7],"W############OWW##WWW##WWB":[5,7],"BOOOOOOBOOOOWOOOOBOOOOWOOO":[3,7],"B############OBO##WWB##WBB":[3,7],"WOOOOOOOOOOOOOBWOOWWWOOWWW":[2,7],"W############OBW##OWW##WWW":[3,7],"WOOOOOOBOOOWBOOOOOOOOOOOOO":[5,7],"W############OBW##WWW##WWB":[5,7],"BOOBBWOOWOOOOOOOOOOOOOOOOO":[2,7],"BOBOOOOWWOOOBOOOOOOOOOOOOO":[2,7],"WOOBBWOOBWWOOOBWOOOOOOOOOO":[3,7],"W#####OOOOOOOOOOBWWOOBBBOO":[3,7],"BOOBOOOBWOOOWOOOOOOOOOOOOO":[2,7],"BOOOOOOBBWOOWOOOOOOOOOOOOO":[1,7],"BBOOOOWOOOOBWOOOOOOOOOOOOO":[3,7],"B#####OOOOOOOOOOOOBOOOOWOO":[3,7],"BOOBWOOOOOOOOOOOOOOOOOOOOO":[4,7],"W############OBO##WBB##WWW":[5,7],"W#####OOOOOOOOOOOBWBOOBBWO":[4,7],"W#####OOOOOOOOOOBBWBOWWBOO":[5,7],"BBBWOOOOWOOOOOOOOOOOOOOOOO":[4,7],"B###########BOBO#BBBB#BBBB":[4,7],"W##########WWOWWOWWWWWWWWW":[7,7],"WOOBWOOOBBOOOOWOOOOOOOOOOO":[5,6],"BOOOOOOOBWWOOOBOOOOOOOOOOO":[4,6],"B#####OOOOOOOOOOOBWBWOWBOO":[0,6],"WOOOOOOOBBWOOOBWOOOOOOOOOO":[3,6],"BOOBWOOOWOOOOOOOOOOOOOOOOO":[5,6],"W############OBB##WWB##OBB":[1,6],"WOOBWOOOWBOOOOBOOOOOOOOOOO":[3,6],"BBBWOOWWBOOOOOOOOOOOOOOOOO":[2,6],"B############OOO##WBB##WBW":[3,6],"W############OBB##WBB##WWW":[6,6],"B#####OOOOOOOOOOBBBOOWWWOO":[2,6],"B##########BWOOOBWBOOBWBOO":[5,6],"WBBOOOWBOOOWBOOOOOOOOOOOOO":[2,6],"WOBWOOOBBOOOOOOOOOOOOOOOOO":[5,6],"W############OBB##OWW##OWW":[2,6],"B############OOO##WBW##BBB":[2,6],"BBBBOOWWBOOWWOOOOOOOOOOOOO":[2,6],"W###########OOWW#OBBW#OBWW":[6,6],"BOOBOOOOOOOOOOOOOOOOOOOOOO":[1,6],"WBBWOOBWBOOWWOOOOOOOOOOOOO":[4,6],"B###########OOBB#OWBB#OWBB":[3,6],"BOBBOOOOWOOOOOOOOOOOOOOOOO":[2,6],"W############OWB##WWW##WWW":[4,6],"W#####OOOOOOOOOOBBWOOBBBOO":[6,6],"W############OBW##OWW##OBB":[2,6],"W#####OOOOOOOOOOOWBWOOBWWO":[4,6],"WOBWBOOOBWOOOOOOOOOOOOOOOO":[6,6],"W###########WOWO#WWWW#WWWW":[4,6],"BOBWOOOOWOOOOOOOOOOOOOOOOO":[1,6],"WOOOOOOBBOOOWOOOOBOOOOWOOO":[3,6],"BOBBOOOWWOOOBOOOOWOOOOOOOO":[5,6],"BOOBOOOOBOOOOOOOOOOOOOOOOO":[1,6],"B############OBB##BBB##WBB":[1,6],"BBBBOOWWWOOOOOOOOOOOOOOOOO":[2,6],"WOBBOOOOBOOOOOOOOOOOOOOOOO":[4,6],"B############OBB##WBB##OWB":[3,6],"WBBOOOWWOOOWBOOOOOOOOOOOOO":[4,6],"B############OBO##WBB##BBW":[2,6],"WOBBWOOBWBOOOOOOOOOOOOOOOO":[5,6],"B###########OOBB#OWWB#OOBB":[4,6],"B############OBB##WWB##WBB":[3,6],"WOOOOOOOOBWOOOBWOOOOOOOOOO":[6,6],"WOOOOOOOBBWOOOWWOOOOOOOOOO":[5,6],"W#####OOOOOOOOWOOOBBOOOOOO":[4,6],"BOOOBWOOOBWOOOBWOOOOOOOOOO":[3,6],"B############OBB##BBB##BWB":[3,6],"WOBWOOOBBOOOWOOOOOOOOOOOOO":[4,6],"W#####OOOOOOOOOOOOOOOOOOOO":[2,6],"WOBBOOOWBOOOWOOOOOOOOOOOOO":[3,6],"WBOOOOWBOOOBWOOOOOOOOOOOOO":[3,6],"BBBBOOWBWOOWBOOOOOOOOOOOOO":[1,6],"B######OOOO#OOOO#OOBW#OOWW":[2,6],"B############OBO##WBB##WBB":[2,6],"B############OOO##WBW##BOB":[3,6],"WBOOOOWWOOOBBOOOOOOOOOOOOO":[5,6],"WOOBWOOOWBOOOOOOOOOOOOOOOO":[2,6],"B##########BBOBBBBBBBBBBBW":[1,6],"W############OBW##WWW##OWW":[4,6],"B######OOOO#OOOO#OOBB#OOWW":[1,6],"BOOBWWOOWBBOOOBWOOOOOOOOOO":[2,6],"B#####OOOOOOOOOOBWBOOWWWOO":[1,6],"BOOOOOOOBBWOOOWOOOOOOOOOOO":[3,6],"W#####OOOOOOOOOOBWWOOBBWOO":[3,5],"BBBWOOWBWOOWBOOOOOOOOOOOOO":[4,5],"B############OBB##BBB##WWW":[2,5],"W##########BBOOOBOBOOBBBOO":[3,5],"W##########OOOOOOOWOOOOWWW":[4,5],"BOOBWWOOOOOOOOOOOOOOOOOOOO":[2,5],"WOBWWOOWBWOOOOOOOOOOOOOOOO":[3,5],"B######OOOO#OOBB#OOBB#OOWW":[1,5],"B##########BBOBBBBBBBBBBBB":[5,5],"W#####OOOOOOBOOOBOBOOWBWOO":[1,5],"WBBBOOWBWOOOOOOOOOOOOOOOOO":[2,5],"BOOBWOOOWWOOOOOOOOOOOOOOOO":[1,5],"BOBWWOOOBOOOOOOOOOOOOOOOOO":[2,5],"B###########OOOO#OBOO#OBWW":[0,5],"W##########OOOOOOOWOOBBWBO":[2,5],"B###########BOBB#BBBB#OBBW":[1,5],"WOOOOOOBOOOOWOOOOBBOOOWOOO":[5,5],"B#####OOOOOBWOOOBWBOOBWWOO":[3,5],"B#####OOOOOOOOOOBBWOOWWWOO":[1,5],"B##########OOOOOOBWBOOBWBW":[0,5],"WBBWOOWWWOOOBOOOOOOOOOOOOO":[5,5],"B###########BOBB#BBBB#OBBB":[3,5],"W##########WWOWWWWWWWWOWWW":[4,5],"B#####OOOOOOOOOOOBWBOOOBWO":[0,5],"BBBBOOWBWOOWWOOOOOOOOOOOOO":[3,5],"BOOBOOOOWWOOOOOOOOOOOOOOOO":[3,5],"B###########OOOO#OBOO#OOWW":[3,5],"B############OBB##WBB##BBW":[3,5],"WOOBWOOOBWOOOOOOOOOOOOOOOO":[3,5],"BOOOOOOOBOOOOOOOOOWOOOOOOO":[1,5],"B############OBB##WWB##OWB":[3,5],"W############OBB##OBB##OBB":[1,5],"W##########OBOOOBOBOOBBBBB":[2,5],"B############OBB##WWW##OBB":[3,5],"W#####OOOOOOOOOOOWBWWOBWWW":[4,5],"W############OWB##WBB##WWW":[4,5],"B############OBB##WWW##OWB":[3,5],"BOOOOOOBBWOOOOWOOOOOOOOOOO":[2,5],"WOBBOOOWBOOOOOOOOOOOOOOOOO":[4,5],"B############OBB##WBB##WWB":[3,5],"W###########OOWW#OBWW#OBBB":[2,5],"W############OWO##WWW##WOW":[5,5],"W###########OOOO#OWOO#OOBB":[3,5],"BOBWOOOWWOOOOOOOOOOOOOOOOO":[2,5],"BOOBBWOOBWWOOOWBOOOOOOOOOO":[2,5],"W##########WWOWWOWWWWWWOWW":[5,5],"WOOBWOOBWBOOOOOOOOOOOOOOOO":[3,5],"W############OBW##OWW##OOW":[3,5],"W############OOO##WBO##BBW":[3,5],"BOOBWOOOBBOOOOWOOOOOOOOOOO":[2,5],"B############OOO##WBB##BOB":[1,5],"B##########BBOBBBBBBWBBWWW":[0,5],"BOOOOOOOOOOOOOBWOOOWWOOOOO":[1,5],"B##########OOOOOOOWOOOOBOO":[4,5],"WOOBOOOOWOOOBOOOOOOOOOOOOO":[3,5],"WOBOBWOOBOOOOOOOOOOOOOOOOO":[3,5],"B##########OOOWWOOOWWWWWWW":[0,5],"W#####OOOOOOOOOOBBBOOBWWOO":[4,5],"W############OBB##WWW##WOW":[5,5],"W###########OOBB#OBBB#BBBB":[4,5],"BOBBOOOWBOOOOOOOOOOOOOOOOO":[2,5],"W###########OOBO#BBBB#BBBB":[3,5],"W###########OOBB#OWBB#OBBB":[0,5],"B#####OOOOOOOOOOBBWBOWWBOO":[2,5],"W############OWW##WWO##WOW":[5,5],"B##########OBOOOBOBOOBBBOO":[1,5],"B#####OOOOOOOOOOOBWBWOWBBB":[3,5],"W##########OOOOOBBWBOWWBBO":[4,5],"W############OBB##OWB##OWB":[4,5],"B#####OOOOOOOOOOOOBWWOOBWW":[2,5],"W###########OOWW#BBBW#BBWW":[3,5],"W############OWW##WOW##WWB":[0,5],"B############OOO##WBB##WBB":[2,5],"B##########BBOBBBBBBOOBBBB":[5,5],"B#####OOOOOOOOOOBBBOOBWWOO":[1,5],"W############OBO##WBW##WWW":[4,5],"BBBOOOWWOOOBWOOOOOOOOOOOOO":[2,5],"W############OBB##WBW##OWW":[3,5],"W##########BBOOOBBBOOBBBBB":[3,5],"B##########BWOOOBBOOOBBBBO":[1,5],"WBBBOOBBWOOWWOOOOOOOOOOOOO":[3,5],"WBBBOOWWWOOOOOOOOOOOOOOOOO":[3,5],"W###########WOWW#WWWW#WWWB":[3,5],"B############OOO##WBB##WWW":[3,5],"BOOOOOOOBWOOOOBWOOOOOOOOOO":[4,5],"BOBBWOOWBWOOOOOOOOOOOOOOOO":[0,5],"B##########BBOOOBBBBBBBBBB":[5,5],"B#####OOOOOOOOOOOOWOOOOBOO":[0,5],"WBBWOOWWBOOBWOOOOOOOOOOOOO":[3,5],"W############OBW##WWW##WOW":[3,5],"W############OBW##OWW##OOB":[1,4],"BOBBOOOWBOOOWOOOOOOOOOOOOO":[2,4],"W##########OOOOOOOWBWOWBBB":[3,4],"W############OBW##OWW##WOW":[4,4],"W##########OWOWWWOWOWWWWWW":[4,4],"W##########BWOWWBWWWWBWWWW":[3,4],"B#####OOOOOOOOWOOOOBOOOOOO":[3,4],"B############OOO##WBO##WWB":[3,4],"BOOBWWOOBWOOOOOOOOOOOOOOOO":[1,4],"W############OBO##OWB##OWB":[0,4],"BOOBWWOOBOOOOOOOOOOOOOOOOO":[3,4],"WOOOOOOOBOOOOOOOOOBOOOOWOO":[2,4],"W##########BWOWWBWWWWWWWWW":[2,4],"B#####OOOOOOOOOOBBWOOWWBOO":[2,4],"WOOBBWOOBWWOOOWWOOOOOOOOOO":[3,4],"B############OBB##WBB##WBB":[4,4],"BOOOOOOOBWOOBOBOOWBWOOOOOO":[3,4],"W##########OOOOOOOWWOBBWWW":[2,4],"W#####OOOOOOOOOOOBWBOOWBWO":[1,4],"W#####OOOOOOOOOOOBWBOOBBWW":[2,4],"B###########BOBW#BBBW#BBBW":[1,4],"W###########OOBW#WWWW#WWBB":[1,4],"WBBBOOOBWOOOWOOOOOOOOOOOOO":[3,4],"B#####OOOOOOOOOOOOOOOOOOWW":[2,4],"B##########OOOOOOOBOOOBBWW":[1,4],"B############OBB##BBB##WBW":[1,4],"B############OBB##BWB##WWW":[2,4],"B###########BOBO#BBOB#BBBB":[3,4],"W############OWO##WWW##WWB":[3,4],"WOBOOOOBOOOOWOOOOBWOOOOOOO":[2,4],"W############OOO##WBB##BBB":[3,4],"B#####OOOOOOOOOOOOOOOOOBWW":[1,4],"W##########WWOWWWOWOWOWWWW":[4,4],"W###########OOBB#BBOB#BBBW":[2,4],"B###########OOWB#OBBB#OBBB":[2,4],"WOBOOOBOBOOWBOOOOOOOOOOOOO":[2,4],"W##########BBOOOBBWWBBBBBB":[3,4],"W############OWB##WBB##WWB":[3,4],"WBBWWOOWBWOOOOOOOOOOOOOOOO":[3,4],"W######OOOO#OOBB#OBBW#OWWW":[3,4],"BOBOOOOWOOOOWOOOOOOOOOOOOO":[2,4],"W##########OBOOOBBBOOBBWWO":[2,4],"BOBWOOOBWOOOBOOOOWOOOOOOOO":[1,4],"BOBWOOOBBOOOWOOOOOOOOOOOOO":[1,4],"W##########OOOWWOBWWWWWWWW":[4,4],"B#####WWWWWWOOWWWWWWWWWWWW":[0,4],"WOOOOOOBOOOOOOOOOOOOOOOOOO":[1,4],"BOOOOOOOOOOOOOOOOOOOOOOOWO":[2,4],"BOOOOOOBWBWOWOOOOOOOOOOOOO":[1,4],"B##########OOOOOOBWBOBBBBO":[2,4],"B##########OOOWOWWWWWWWWWW":[1,4],"W############OBB##WWW##WWW":[3,4],"W###########WOWW#WWWW#WOWW":[4,4],"B############OBO##BBB##WWB":[2,4],"WBOBOOOBWOOOOOOOOOOOOOOOOO":[3,4],"BBBWOOBBBOOWWOOOOOOOOOOOOO":[4,4],"B###########OOBB#OBBB#OBBB":[2,4],"W#####OOOOOOOOOOOWBWWOWWWB":[2,4],"B#####OOOOOOOOOOBBWOOWWWBO":[3,4],"B##########OOOOOOOBBWOOBWW":[0,4],"BOBOOOOBOOOOWOOOOOOOOOOOOO":[1,4],"B##########OOOOOOOBOOOOWWW":[0,4],"BOOOOOOOOOOOOOOOOOOOOOOWOO":[3,4],"W#####OOOOOOOOOOOOOOWOOOBW":[1,4],"W#####OOOOOBWOOOBWBOOBBWOO":[1,4],"BOOOBWOOBBBOOOBWOOOOOOOOOO":[1,4],"W##########OOOOOOOBWWOBBBW":[3,4],"BBBBOOWBWOOOOOOOOOOOOOOOOO":[2,4],"BOBWOOOWBOOOWOOOOOOOOOOOOO":[2,4],"W##########OOOOOOBWOOBBBOO":[3,4],"W#####OOOOOOOOOOBBWOOBBWOO":[1,4],"W#####OOOOOBBOOOWWBOOWWBOO":[2,4],"BOOBWOOOBOOOOOOOOOOOOOOOOO":[0,4],"B############OBB##BOB##BOB":[2,4],"W##########BBOOOBOBOOBBBBO":[2,4],"WOOBWWOOWWWOOOWWOOOOOOOOOO":[1,4],"B#####OOOOOOOOOOOOBWWOOWWW":[1,4],"BOOOOOOOOOOOBOOOWBWOOOOOOO":[1,4],"W##########OOOOOOWBWOOBWWW":[2,4],"WOOBWWOOWBBOOOOOOOOOOOOOOO":[2,4],"B##########BBOOOBOBOOBBBBB":[3,4],"B##########BBOBOBBBBBBBBBW":[1,4],"W#####OOOOOOOOOOOOOOOOOOOW":[3,4],"W############OBW##WWB##OWB":[1,4],"WBBWOOOBWOOOOOOOOOOOOOOOOO":[2,4],"B#####OOOOOOOOOOBWWOOWWBOO":[2,4],"W###########OOBW#OOBW#OOBW":[3,4],"BOOBBWOOWBBOOOWWOOOOOOOOOO":[1,4],"B###########OOOO#OBOO#OOBB":[2,4],"W######OOBO#OOWB#OOBW#OOBW":[2,4],"BOOBOOOOBWOOOOOOOOOOOOOOOO":[0,4],"W#####OOOOOOOOOOBBBOOBBBOO":[4,4],"W##########BBOOBBOBOBBBBBB":[3,4],"WBBWOOWWBOOOOOOOOOOOOOOOOO":[1,4],"W##########OOOOOOOBOOBBBBW":[3,4],"W##########WOOWWWOWWWWWWWW":[4,4],"WBOOOOOOOOOOOOOOOOOOOOOOOO":[3,4],"BOOOOOOOBOOOOOOOOOOOOOOOOO":[1,4],"BBBBOOBWWOOOOOOOOOOOOOOOOO":[0,4],"B############OBB##WWB##WWW":[1,4],"W##########OOOBWOOBWOBBWWW":[4,4],"B##########OOOOOOOBOOBBOBO":[0,4],"W############OBW##OWO##OOW":[4,4],"B##########BBOBBBBBOBBOBBB":[3,4],"WOOBBWOOWBWOOOOOOOOOOOOOOO":[3,4],"B#####OOOOOOOOOOBWBWOBWWOO":[0,4],"WOBOOOOOOOOOOOOOOOOOOOOOOO":[3,4],"BOOOOOOOOOOOOOBWOOWBWOOOOO":[0,4],"B#####OOOOOOOOOOOWBWWOBWWW":[0,4],"B#####OOOOOOOOOOBWBOOOWBOO":[1,4],"B#####OOOOOOOOOOOOBBWOOWWW":[2,4],"WBBBOOBBWOOOOOOOOOOOOOOOOO":[2,4],"W###########OOBW#OOWB#OOBB":[0,4],"BOOBWOOOOWOOOOBOOOOOOOOOOO":[2,4],"WOOOOOOBBOOOWOOOOWBOOOOOOO":[4,4],"B############OBW##WBB##BBB":[1,4],"W##########OOOBWBBWWWWWWWW":[2,4],"BOOOOOOOOOOOOOBWOOOBOOOOWO":[1,4],"W##########WWOWWWWWWWBWWWW":[2,4],"W############OWB##WWB##WWB":[1,4],"WOOBOOOOBWOOOOOOOOOOOOOOOO":[2,4],"WOOBWOOOBBOOOOOOOOOOOOOOOO":[3,4],"W#####OOOOOOBOOOBBBOOWBWOO":[3,4],"WOOBBWOOBWWOOOBBOOOOOOOOOO":[4,4],"WOOOOOOOOOOOBOOOWBWOOWBWOO":[1,4],"WOBOOOOWWOOOBOOOOOOOOOOOOO":[3,4],"BOOOOOOBBOOOWOOOOWOOOOOOOO":[1,4],"W############OBW##OWW##OBW":[4,4],"W############OWW##WWB##WWB":[4,4],"W############OBB##WWB##WWB":[2,4],"WOBOOOOBWOOOOOOOOOOOOOOOOO":[3,4],"B#####OOOOOOOOOOOOOWWOOOWB":[0,4],"W############OBW##WWW##OWB":[2,4],"W############OBO##WBB##WBB":[2,4],"W##########OOOWWOBWWWOWWWB":[2,4],"WBBBOOOBWOOOOOOOOOOOOOOOOO":[1,4],"BBOOOOWWOOOBBOOOOOOOOOOOOO":[2,4],"B##########BBOBOBOBOBBBBBO":[4,4],"B###########BOBB#BBBB#BBBO":[4,4],"B##########OOOOOOBWBOBBBBW":[1,4],"BBBWOOWWWOOWBOOOOOOOOOOOOO":[1,4],"B#####OOOOOBBOOOWBWOOWWWOO":[1,4],"BBBBOOWBBOOWWOOOOOOOOOOOOO":[3,4],"B##########BBOBOBBBBBBBBOB":[3,4],"BOOOOOOOOOOOOOBWOOOOWOOOOW":[2,4],"B##########OOOOOBBWWBBWWWB":[1,4],"B###########OOWB#OOBB#OOBB":[3,4],"B############OBO##WWB##WWB":[1,4],"B############OBO##OBO##OBB":[1,4],"W############OBB##WBB##WBW":[4,4],"B############OBB##BBO##OBB":[3,4],"WOOBWWOOBBWOOOBOOOOOOOOOOO":[3,4],"W############OBW##WBW##WWB":[3,4],"BOOBBWOOWBBOOOOOOOOOOOOOOO":[0,4],"W#####OOOOOOOOOOWBBWWBBBBB":[3,4],"BOOOOOOOBWWOOOOWOOOOOOOOOO":[3,4],"WOBWWWOOBWWOOOBWOOOOOOOOOO":[4,4],"BOOOOOOOOOOOOOOOOOOOOOOOWW":[1,4],"W############OOO##WBO##BOB":[3,4],"B############OBW##OWW##OOW":[0,4],"B##########BBOBBOBBBWBBWWW":[2,4],"BBWBOOWWBOOOOOOOOOOOOOOOOO":[1,4],"B#####OOOOOOOOOOOOOOOOOOOW":[0,4],"W##########OOOWWOBWOWOWWWW":[3,4],"B###########BOBB#OBBB#BOBB":[4,4],"W#####OOOOOOOOOOOWBWWOWBWW":[4,4],"W############OBB##OWB##OWW":[2,4],"B######OOOO#OOOO#OOOO#OOOO":[0,4],"W###########OOWW#OBBW#OOBW":[3,4],"W###########OOWB#OOBB#OOBB":[3,4],"B##########BBOBOBBBBBBBBWW":[2,4],"BOBBOOOWOOOOWOOOOOOOOOOOOO":[1,4],"W######OOOO#OOBW#OWBW#OWWW":[2,4],"B############OBB##OWB##OWW":[0,4],"WBBOOOOBOOOBWOOOOOOOOOOOOO":[4,4],"B##########OOOOOBBWBOBBBBO":[0,4],"B############OOO##WBW##BBW":[3,4],"W############OBB##WWB##WWW":[4,4],"BOOOOOOOOOOOOOOOOOOOOOOOOW":[1,4],"W############OBW##OWW##WWB":[1,4],"WBBOOOBBOOOWWOOOOOOOOOOOOO":[4,4],"W###########OOBW#OOWW#OOWW":[3,4],"BOOOOOOOOBWOOOWWOOOOOOOOOO":[0,4],"B#####OOOOOOOOOOOOOOWOOOOW":[0,4],"B###########BOWB#BBBB#BBBB":[1,4],"WBBWOOWWWOOOOOOOOOOOOOOOOO":[3,4],"WOOOOOOBBOOOWOOOOBWOOOOOOO":[4,4],"BOBWOOOBWOOOWOOOOOOOOOOOOO":[3,4],"B##########BBOBOOBBBBBBBBB":[3,4],"B##########BBOBBOBBBOBBBBB":[3,4],"WOBBOOOWWOOOOOOOOOOOOOOOOO":[3,4],"B############OOB##WBB##BOB":[3,4],"WOOOOOOOOOOOOOBWOOOBBOOOWW":[3,4],"W############OBO##WBW##WBW":[2,4],"B##########BBOBBBBBBOWWBBB":[2,4],"W######OOOO#OOOO#OOWB#OOWB":[2,4],"W############OWO##WWO##WWW":[3,4],"B##########BWOOOBWBOOBBBBB":[3,4],"BOBBWOOOWOOOOOOOOOOOOOOOOO":[3,4],"W#####OOOOOOOOWOOOBWBOOBWB":[1,4],"W############OWB##WWB##WWW":[4,4],"B#####OOOOOOOOOOOOWBWOOOOO":[0,3],"WBWWOOWBBOOWWOOOOOOOOOOOOO":[2,3],"B######OOOO#OOOO#OOOW#OOWO":[1,3],"B#####OOOOOOOOOOOBWBWWWBBB":[2,3],"WBBBOOWBBOOWWOOOOOOOOOOOOO":[2,3],"W######OOOO#OOOO#OOOO#OOWB":[3,3],"W##########OOOOOOOWOOOWWWW":[1,3],"WOBOOOOBBOOOWOOOOOOOOOOOOO":[1,3],"W#####OOOOOOOOOOBWBOOWWBOO":[0,3],"BOOOOOOOOOOOOOBWOOOBBOOOWW":[1,3],"BBBOOOWWOOOWWOOOBOOOOOOOOO":[2,3],"WOBBOOOBWOOOOOOOOOOOOOOOOO":[2,3],"W#####OOOOOOOOOOBBBOOWBWOO":[2,3],"W######OOOO#OOOO#OWWW#OWBB":[3,3],"W############OBW##WBB##OWB":[2,3],"B##########OWOOWWOWWWWWWWW":[0,3],"W###########WOWW#WWOW#OWWW":[2,3],"W##########OOOWOOOBWOOOBBO":[2,3],"WBBBOOOWWOOOOOOOOOOOOOOOOO":[1,3],"B############OBW##OWW##OWB":[1,3],"W###########OOBO#OBOB#OOBW":[1,3],"B############OOO##WBO##BOB":[3,3],"W#####OOOOOOOOOOOOOOOBOOOO":[2,3],"W###########OOBW#OOWW#OWBB":[1,3],"W##########OOOOOWOWWWWWWWB":[2,3],"B############OBW##WOW##WWW":[1,3],"W############OBB##WWB##OWB":[1,3],"W############OBO##OOB##OOB":[0,3],"B############OBB##BOB##BBW":[0,3],"B###########OOWB#OOBB#OBBB":[1,3],"BBBBWOWWWBOOOOOOOOOOOOOOOO":[1,3],"WBBWOOWWBOOOBOOOOOOOOOOOOO":[2,3],"WOOOOOOOOOOOOOBWOOBBWOOWWW":[3,3],"B#####OOOOOOOOBWOOBWWOOWWW":[0,3],"B#####OOOOOOOOOOBBWBBBWWWB":[1,3],"B##########BBOBBBBBBOWBBBB":[0,3],"W##########OWOWOBBWWWBBWWW":[3,3],"WOBBBOOOWWOOOOOOOOOOOOOOOO":[2,3],"WOBWBOOBWWOOBOOOOOOOOOOOOO":[2,3],"WBBWOOWWBOOWWOOOOOOOOOOOOO":[0,3],"WOOBWWOOWOWOOOWOOOOOOOOOOO":[2,3],"W##########OOOOOOBWBOOBWBW":[2,3],"W###########OOBW#WWBW#WWWW":[2,3],"WBBOOOWBWOOWBOOOOOOOOOOOOO":[1,3],"B#####OOOOOOOOBWOOBBBOOWBW":[2,3],"W#####OOOOWOOOWWOOWBBOOBBB":[2,3],"BOOBBWOOBWBOOOWOOOOOOOOOOO":[1,3],"B##########BBOBOBBBOBBBBBW":[2,3],"W##########BWOWWBWWWWBWWWB":[0,3],"W##########OWOWWWWWWWWWBBB":[1,3],"WBBBOOWBWOOWWOOOOBOOOOOOOO":[2,3],"W############OWB##WWW##WOW":[1,3],"W#####OOOOOOBOOOBOBOOBBWOO":[1,3],"B#####OOOOOOOOOOOOWWWOOWWB":[0,3],"B############OBB##WBB##WBW":[2,3],"W############OOO##WBB##BBW":[3,3],"B#####OOOOOOBOOOWBWOOWWWOO":[0,3],"W##########OOOBWOOWBWOBBWW":[2,3],"WOBBOOBWWOOOOOOOOOOOOOOOOO":[2,3],"BOBWOOOOBOOOOOOOOOOOOOOOOO":[0,3],"WBBWWOWWBWOOOOOOOOOOOOOOOO":[2,3],"W#####OOOOOOOOOOOWBWWOOWWW":[1,3],"W##########WWOWWBWWWWBBBWW":[3,3],"BOBWOOOWWOOOBOOOOBOOOOOOOO":[1,3],"WBBWBOOBWWOOOOOOOOOOOOOOOO":[1,3],"W###########OOBB#BBBB#OBBW":[2,3],"BOBWOOOOOOOOOOOOOOOOOOOOOO":[1,3],"B#####OOOOOOOOOOBBWOOBBWOO":[0,3],"W#####OOOOOOOOOOBWBWOWWWBO":[2,3],"B###########OOBB#OBBB#OOBB":[1,3],"B##########OOOWWOOWOWOWWWW":[0,3],"B#####OOOOOOOOWWOOBWBOOBBB":[1,3],"W############OWB##WWB##OWB":[2,3],"W##########WWOWWWBWWWBBBBB":[2,3],"B###########OOWB#BWWB#BBBB":[1,3],"W##########OOOWWBBBWWWWWWW":[2,3],"W############OBW##WBW##WBW":[3,3],"W#####OOOOOBBOOOBWBOOBWBOO":[2,3],"W##########BWOWWBBWWOBBWWW":[3,3],"B##########BBOBBBBBBBBBWWB":[1,3],"B#####OOOOOOOOOOBWBOOOOOOO":[0,3],"W#####OOOOOOOOOOBBWBOBBBOO":[2,3],"W############OBW##OWB##OBB":[2,3],"W##########OWOWWWWWOWWOWWW":[3,3],"B###########OOWW#OBBW#OBWW":[2,3],"BOOBBWOOWWWOOOBWOOOOOOOOOO":[1,3],"WOOBBWOOWWBOOOOOOOOOOOOOOO":[2,3],"W###########OOWB#OOBB#OBBW":[2,3],"B##########OOOOOBWBOOWWWWO":[0,3],"W###########OOBB#OWWB#OWWW":[3,3],"B###########OOOO#OBBO#OBBB":[0,3],"W#####OOOOOOOOWOOOBBBOOWWB":[2,3],"B##########OOOOOOBWBWOWBBB":[2,3],"B#####OOOOOOOOOOOWBWWOWWBB":[0,3],"W#####OOOOOOOOWWOWBWWWBBBB":[1,3],"B############OOO##WBB##BWW":[1,3],"B#####OOOOOOOOOOOWBWOOBWWO":[2,3],"WBOOOOWWOOOWBOOOBWOOOOOOOO":[1,3],"BOOBWWOOBWOOOOOWOOOOOOOOOO":[1,3],"W##########OBOOOBBBBBBBBBB":[2,3],"B#####OOOOOOOOOOOWBWOOBWOO":[3,3],"WOOBBWOOWWBOOOBWOOOOOOOOOO":[2,3],"BOBBWWOOWOWOOOWOOOOOOOOOOO":[1,3],"WOBWWWOOWBWOOOBWOOOOOOOOOO":[2,3],"W##########OOOBWOOBWOOBWWW":[1,3],"W##########OWOWWWOWOWBWWWW":[1,3],"W###########OOBO#BBBB#BBWB":[2,3],"W#####OOOOOOOOOOOBWBWOWBOO":[2,3],"WBOOOOWBOOOWWOOOWOOOOOOOOO":[3,3],"BBBBOOWBBOOWBOOOOOOOOOOOOO":[0,3],"B######OOOO#OOWW#OWBB#OWBB":[2,3],"B##########BBOOOOBWOOBBWOO":[1,3],"W##########WWOWWWWWWWBBBWW":[2,3],"B##########OOOOOOOBOOBBBOO":[0,3],"B#####OOOOOOOOOOBWWWWWWWWW":[0,3],"W###########BOOO#OBOO#BBBW":[2,3],"W##########OWOBWWOWWWOWWWW":[3,3],"BOBWBOOWBWOOOOOOOOOOOOOOOO":[2,3],"B#####OOOOOOOOWWOOWOWOOOWB":[2,3],"W#####OOOOOBBOOOBBBOOWBBOO":[2,3],"W############OBO##WBB##WWB":[2,3],"B############OBB##WBB##OWW":[1,3],"W##########OWOWWBWWWWBWWWW":[2,3],"B#####OOOOOOOOOOOBWBWOBWBW":[3,3],"B##########BBOOOBBBOOBBBBO":[2,3],"B###########OOBB#BBBB#BBBB":[3,3],"B#####OOOOOOOOOOBBWBOWWBBO":[1,3],"B#####OOOOOOOOOOOBWBWOBWBB":[1,3],"W###########OOBW#OOWO#OOBW":[3,3],"W###########OOBB#BBBB#BBBB":[2,3],"B###########OOWW#OOBB#OOWW":[1,3],"B############OBB##OOB##OOB":[1,3],"WOOOOOOOBWOOOOBOOOOBOOOOWO":[2,3],"W###########OOWW#OBWW#OOWW":[3,3],"B############OBO##OOB##OBW":[1,3],"W##########OOOWWOOWOWWWWWW":[3,3],"W##########OOOWWBOBWWWWWWW":[3,3],"WOOOOOOOBWOOOOOOOOOOOOOOOO":[2,3],"W##########OOOOOOBWBOOBBWW":[1,3],"B#####OOOOOOOOOOBWBWOBWBWO":[2,3],"BOOBBWOOOBWOOOWWOOOOOOOOOO":[1,3],"WOOOOOOOOOOOOOOOOWBWWOWWBW":[2,3],"WOOOOOOOOOOOOOWWOOWWWOWWWW":[2,3],"W############OOO##WBB##BWW":[1,3],"B############OBO##WBB##BWW":[2,3],"W############OBB##WOB##BBB":[1,3],"WBBBOOWBWOOWWOOOOOOOOOOOOO":[2,3],"WBOOOOWOOOOOOOOOOOOOOOOOOO":[2,3],"W######OOOO#OOOO#OWBB#OOBB":[2,3],"B###########OOWW#OWOW#OWWB":[1,3],"B#####OOOOOOBOOOWWBOOWWBOO":[2,3],"BOOOOOOOOOOOOOBWOOWWWOOWWW":[0,3],"BOOBWWOOBWWOOOOOOOOOOOOOOO":[0,3],"BOBOOOOBWOOOOOOOOOOOOOOOOO":[1,3],"B##########BBOBOBOBOBBBBBW":[1,3],"B##########OOOOOOOBWOOBBWB":[2,3],"B######OOOO#OOOO#OOOB#OOOW":[1,3],"W###########OOOO#BWBB#BWBW":[2,3],"B############OOO##WBO##WBB":[2,3],"W############OBO##OBB##BBB":[1,3],"B#####OOOOOOOOOOOBWBWOBBBW":[1,3],"WBBBOOWBOOOWWOOOOOOOOOOOOO":[1,3],"B######OOOO#OOOO#OOWB#OOWB":[1,3],"WBWBOOWWBOOWBOOOOOOOOOOOOO":[3,3],"BOBWOOOBWOOOWOOOOBOOOOOOOO":[2,3],"BBBWOOBBBOOWBOOOOOOOOOOOOO":[2,3],"W##########OOOOOBBWBOBBBWO":[1,3],"W##########OOOOOOWBWWOWBWB":[1,3],"B##########BBOBOOBBOOBBBBB":[2,3],"BOOOOOOOOOOOOOBWOWBBWOOOOO":[2,3],"WOBBOOOBBOOOWOOOOOOOOOOOOO":[2,3],"BOOOOOOOOOOOOOOOOWBBWOWBBW":[2,3],"W#####OOOOOOOOOOBBWOOOBWOO":[1,3],"B#####OOOOOOOOOOBWBWOWWWWO":[2,3],"B#####OOOOOOOOOOOBWBWOBBBB":[2,3],"B###########BOBW#BBBB#BBBB":[3,3],"WOBWWOOBBOOOOOOOOOOOOOOOOO":[2,3],"BOOBWWOOBBOOOOWOOOOOOOOOOO":[2,3],"BOBBOOOBWOOOWOOOOOOOOOOOOO":[2,3],"W############OOO##WBW##BBB":[0,3],"B###########OOWB#OBBB#OBBW":[1,3],"BBBBBOBBWBOOOOOOOOOOOOOOOO":[0,3],"B##########BBOBBBBOBBBBBBO":[2,3],"BBBOOOBWOOOWWOOOOOOOOOOOOO":[1,3],"W######OOOO#OOOO#OOOB#OOWB":[2,3],"B###########BOBB#OBOB#OBBB":[1,3],"B############OOW##WBW##BBW":[2,3],"W############OOO##WWB##WWB":[2,3],"W###########OOWW#OWBW#BBBB":[3,3],"W############OBB##WWB##WBB":[3,3],"W##########BWOWWBBWWWBBBWW":[2,3],"BOOOOOOOOOOOOOOWOOWBWOOOOO":[1,3],"WOOOOOOBOOOOWOOOOBOOOOWOOO":[1,3],"W###########OOBO#OBOB#OBBB":[1,3],"W###########OOWW#OWWW#WWWW":[2,3],"W#####OOOOOOOOOOOBWBOOOOOO":[3,3],"B############OBB##BWW##WWW":[1,3],"W###########WOWW#WWWB#WWBB":[1,3],"W###########OOBB#BBBB#OBWW":[3,3],"WBBBOOOOOOOOOOOOOOOOOOOOOO":[2,3],"BBBBOOOBWOOBWOOOOOOOOOOOOO":[2,3],"BOOBWWOOWBBOOOOOOOOOOOOOOO":[0,3],"BBOOOOWWOOOBWOOOOOOOOOOOOO":[0,3],"WOOOOOOOOBWOOOWBOOOBBOOOOW":[2,3],"BBBOOOBWWOOWBOOOOOOOOOOOOO":[1,3],"WOOOOOOOOOOOBOOOWBWOOOOOOO":[2,3],"BOOOOOOBOOOOWOOOOBBOOOWWOO":[1,3],"W#####OOOOOOOOWWOOWBWOOBBB":[1,3],"BOOOOOOOOOOOOOWOOOWOWOWWWW":[1,3],"W###########OOBO#OWWB#OBBB":[3,3],"B#####OOOOOOOOOOOOBBWOOBWW":[1,3],"B#####OOOOOBOOOOBBWWBBWWWW":[0,3],"WOOOOOOBBWOOWOOOOBOOOOOOOO":[2,3],"WBBOOOWWWOOBWOOOOOOOOOOOOO":[2,3],"BOOBWWOOBWWOOOWWOOOOOOOOOO":[1,3],"W#####OOOOOOOOOOOBWBWOOBBB":[2,3],"B######OOOO#OOBO#OWWB#OOBB":[0,3],"B############OBW##WBB##BBW":[0,3],"B###########OOWW#BBBW#WBWW":[2,3],"B##########BWOOOBBWOOBBWOO":[0,3],"B###########OOOW#WBWW#WWWW":[0,3],"B###########OOWW#WWWW#WWBB":[1,3],"BOOBOOOOOOOOOOWOOOOOOOOOOO":[1,3],"B############OBO##WBO##BBB":[1,3],"W##########OOOWWWBBWWWWWWW":[3,3],"W#####OOOOOBBOOOBWBOOWWWOO":[3,3],"W###########OOWO#BBWB#BBBW":[2,3],"B###########OOBB#OOWW#OOWW":[0,3],"B###########BOBB#BBBB#BBBW":[0,3],"W############OWO##WWW##WWO":[3,3],"W############OWB##WBB##OWB":[2,3],"B##########OOOOOOOBOOOOBBW":[1,3],"W############OBW##OWB##OOB":[2,3],"B#####OOOOOOOOOOOOOOWOOOWW":[1,3],"W##########OOOBWOOWWWOOBWB":[2,3],"W##########BWOWOBWWWWBBBWW":[2,3],"BOOOOOOOBOOOBOBOOWBWOOWBWO":[1,3],"W##########OOOOOOOWWWOOBBB":[3,3],"B##########BBOWBBBOBOBBBBB":[1,3],"WOOOOOOOBBWOOOWOOOOOOOOOOO":[1,3],"WBWOOOWOWOOWWOOOOOOOOOOOOO":[3,3],"W##########OWOWWBBWOWBWWWW":[3,3],"W##########WWOWWOWWWWWWWWO":[3,3],"B##########BWOOOOBOOOBBBWO":[1,3],"WOBBBWOOBWWOOOOOOOOOOOOOOO":[2,3],"W###########WOOW#WWOW#WWWW":[3,3],"BBOOOOWOOOOWBOOOOOOOOOOOOO":[0,3],"B##########BBOBOBOBWOBBBWO":[1,3],"BOOBWWOOBWBOOOOOOOOOOOOOOO":[1,3],"W#####OOOOOOOOBWOOWWWOOBBW":[3,3],"BOOBBWOOBBWOOOBBOOOOOOOOOO":[1,3],"B##########OOOWOWWWBWWWBBB":[1,3],"BOOOBWOOOBBOOOWWOOOOOOOOOO":[1,3],"BOOBWWOOBBWOOOWOOOOOWOOOOO":[0,3],"B#####OOOOOOOOOWOOBWWOOBBW":[1,3],"B##########BBOBOBBBWBBBWWW":[0,3],"B##########BBOBBBBBWBBBWWW":[0,3],"WOOBBWOOBWWOOOWBOOOOOOOOOO":[1,3],"WOBWWWOBBWBOOOWBOOOOOOOOOO":[2,3],"B##########OOOOOOBWOOBBWOO":[0,3],"BOOOOOOOOOOOOOWOOOBBWOWWBW":[3,3],"B##########OOOWWOOBWWOBBBB":[2,3],"B############OBO##WBW##BWW":[1,3],"WOOBWWOOBBBOOOOOOOOOOOOOOO":[1,3],"W#####OOOOOOOOWOOOBWBOOBBW":[0,3],"W##########OWOWOOWWWWOBBWW":[1,3],"B############OOO##WBW##WWB":[3,3],"BOBWOOOBBOOOOOOOOOOOOOOOOO":[2,3],"BBWOOOWWOOOWWOOOOOOOOOOOOO":[2,3],"BOBBBWOBWWWOOOBWOOOOOOOOOO":[1,3],"W###########OOWO#WWOW#WOWW":[3,3],"B##########OOOOOOOBOOWBBWW":[2,3],"WOOBBWOOBWWOOOOOOOOOOOOOOO":[3,3],"B##########OOOOOOOBOOOOOWW":[0,3],"B###########OOWB#WWBB#WBBB":[1,3],"B##########OOOWWOWWWWWWWWW":[0,3],"W##########OWOWWOWWWWWWWWW":[3,3],"B###########BOBB#BBBO#BOBB":[1,3],"B############OOO##WWW##WOB":[0,3],"B###########OOWB#OBWB#OBBB":[1,3],"BOOOOOOOBBWOOOBWOOOOWOOOOO":[1,3],"B###########OOBB#OBBB#BOBB":[1,3],"W##########BBOOOBBBOOBWBBO":[2,3],"B###########OOWW#WWWW#WWWB":[2,3],"BOOOOOOBBWWOOOOOOOOOOOOOOO":[1,3],"B############OBB##WWW##BBB":[0,3],"B##########OOOWWOOBBWBBBBB":[2,3],"B############OBB##WBB##OBB":[3,3],"BOOBWWOOWWBOOOOOOOOOOOOOOO":[2,3],"B############OBW##WBW##BBB":[1,3],"W############OWB##WWW##OWW":[0,3],"B###########OOOO#BWBO#OBBB":[3,3],"BBOOOOWWOOOWBOOOOOOOOOOOOO":[2,3],"BOOBBWOOBWWOOOOOOOOOOOOOOO":[1,3],"W#####OOOOOOOOOOBWWBOBBBBW":[0,3],"BOOBOOOOBWWOOOOOOOOOOOOOOO":[0,3],"WOOBWWOOBOOOOOOOOOOOOOOOOO":[3,3],"W##########BWOWWBWWWOBBWWW":[2,3],"W##########BWOOOOBOOOBBBOO":[3,3],"W############OBW##WWW##BWW":[2,3],"B#####OOOOOOOOOOOWBWWBBWWW":[0,3],"B#####OOOOOBBOOOBWWBBWWBBB":[0,3],"B############OOB##WBB##WBB":[2,3],"B######OOOO#OOOO#OOWW#OOWW":[2,3],"B##########BBOBBBBBOBWBBBB":[3,3],"W###########OOOO#OBOW#OBWW":[1,3],"W##########OOOWWOOWWWWWWWW":[3,3],"W#####OOOOOOOOWOOOBBBOWBBB":[1,3],"B##########BBOOOOBWWWBBBBW":[2,3],"BOOBWOOOBWOOOOBOOOOWOOOOOO":[1,3],"W###########OOBB#OOWB#OBWW":[2,3],"W#####OOOOOOOOOOBWBWOWWWWO":[2,3],"B#####OOOOOOBOOOOBWWWBBBWW":[0,3],"BBWOOOWBOOOWWOOOOOOOOOOOOO":[1,3],"WBOOOOWOOOOBBOOOOOOOOOOOOO":[0,3],"B#####OOOOOOOOOOOBWBOOBBWO":[2,3],"W##########OBOOOBWWBBWWWWB":[1,3],"B##########BBOWWBBBWWBBBBW":[2,3],"WOOBBWOOBOOOOOOOOOOOOOOOOO":[2,3],"B##########OOOOOOOBOOBBWOO":[1,3],"BOOOOOOOOOOOOOWOOOWOWOOWWW":[2,3],"B######OOOO#OOOB#OOBW#OOWW":[0,3],"W###########OOWW#OBWW#OWWW":[3,3],"B###########OOOO#OBOB#OOBW":[0,3],"B######OOOO#OOOO#OWBO#OOOO":[0,3],"W##########WWOWWWWWWWOWWWW":[2,3],"W#####OOOOOOOOOOOBWBWOOBOO":[1,3],"B##########OOOWOOBBWBOWWBB":[3,3],"B###########OOWO#OBBW#OOWW":[1,3],"BBBWOOBWBOOWWOOOOOOOOOOOOO":[0,3],"B###########WOWB#WOWB#WWWB":[0,3],"B#####OOOOOOOOOOOOBWWOBBBW":[0,3],"WOBWOOOBWOOOOOOOOOOOOOOOOO":[2,3],"BOOBWOOOBWOOOOWOOOOOOOOOOO":[1,3],"WOOBBWOOWWBOOOBOOOOOOOOOOO":[3,3],"B##########OOOOOBOWOOBWWWW":[1,3],"WOBBOOOBWOOOBOOOOOOOOOOOOO":[2,3],"W##########OOOOOOOBOOBBBBO":[3,3],"B#####OOOOOOOOOOBWBOOWWBOO":[1,3],"W##########OBOOOBOBOOBBBBW":[1,3],"W###########OOBB#OBBB#OOWB":[1,3],"WOBBBOOWBWOOOOOOOOOOOOOOOO":[1,3],"B###########BOBO#BBBB#BBBW":[1,3],"B##########OBOBWBBBBWBBBBB":[2,3],"BBBWOOOBWOOOWOOOOOOOOOOOOO":[1,3],"WOOBWWOOBBWOOOOOOOOOOOOOOO":[1,3],"WOOOOOOOOOOOBOOOOBWOOWWWOO":[2,3],"B#####OOOOOOOOOOOOWWWOOBWW":[2,3],"W###########BOBB#BOBB#OBBW":[3,3],"BOOOOOOOOOOOOOOOOOWWOOWBWO":[1,3],"W###########OOWB#OWWB#OWBB":[2,3],"B############OOW##WWW##OWW":[0,3],"WOBWWWOWBWOOOOOOOOOOOOOOOO":[3,3],"B#####OOOOOOOOOOBWWOOWWWOO":[1,3],"W#####OOOOOOOOOOBWBWOWWBWO":[3,3],"B#####OOOOOBBOOOWWWOOWWWOO":[1,3],"B#####OOOOOOOOWOOOBWBOOWBO":[1,3],"BOBWBOOOBWOOOOWOOOOOOOOOOO":[2,3],"B##########OOOOOOBWBOOBWBO":[1,3],"BBBBOOBBWOOWWOOOOOOOOOOOOO":[0,3],"B##########OOOOOOWBWOOWWBW":[1,3],"B##########OOOWOWWWWWWWWBW":[1,3],"B############OBB##BBB##BWW":[1,3],"BOOOOOOBBOOOWOOOOOOOOOOOOO":[1,3],"B#####OOOOOOOOWOOOBWBOOWBB":[1,3],"B#####OOOOOOOOOOOWBWWOBBWW":[0,3],"W######OOOO#OOBW#OWBW#OBBW":[2,3],"W############OWB##WOW##WWW":[3,3],"WBWBOOWBWOOOBOOOOOOOOOOOOO":[1,3],"BOOBBWOOBWOOOOOWOOOOOOOOOO":[1,3],"BOBWBOOBWOOOWOOOOOOOOOOOOO":[1,3],"BOOBBWOOWBWOOOBWOOOOOOOOOO":[0,3],"B###########WOWW#WOWW#WWWW":[0,3],"W##########OWOWWWWWOWWWWWW":[3,3],"W##########WWOWWWOWOWWWWWW":[3,3],"B##########BBOBWBBBBWBBBBW":[3,3],"WOBBWOOBWWOOOOBOOOOOOOOOOO":[0,3],"W##########BBOOOWBBBBWWWWW":[1,3],"B###########OOWB#OOBB#OOWW":[1,3],"W###########OOBB#OOWW#OOWB":[1,3],"B#####OOOOOOOOOOOOBWWOOWOW":[2,3],"BOOOOOOOBBWOOOOOOOOOOOOOOO":[0,3],"B#####OOOOOBBOOOBBWOOBWWOO":[1,3],"W###########OOOO#BBWW#BBBW":[1,3],"W###########OOBO#OBBB#OWBW":[2,3],"W############OBB##WBB##OWB":[3,3],"WOBWOWOWBWOOOOOOOOOOOOOOOO":[1,3],"B######OOOO#OOBO#OOBW#OOBW":[1,3],"B###########OOBO#BWWB#OBBB":[3,3],"B##########BBOBOBBBOBBOBBB":[3,3],"W##########BBOOOBBOOOBBBOO":[1,3],"W############OBO##OWB##OBB":[3,3],"W#####OOOOOOOOBWOOWBWOOBBW":[2,3],"B###########OOOO#OBOO#BBWW":[0,3],"B###########OOBB#BBBB#OOBB":[0,3],"B#####OOOOOOOOOOBBWBOBWBBO":[1,3],"W######OOOO#OOOO#OOBB#OOWW":[3,3],"B#####OBOOOBWOOOBBBBBBBBBB":[3,3],"W######OOOO#OOOW#OWWB#OWBB":[1,3],"W##########OOOWWOOBBWOOWWW":[3,3],"B############OBB##BOB##WBB":[0,3],"W#####OOOOOOOOOOBBWBOBBBWO":[2,3],"W############OBW##OWO##OWW":[3,3],"B######OOBO#OOWB#OOBB#OBBB":[2,3],"B###########OOBB#OBBB#OWBB":[2,3],"B############OBB##WBW##BBW":[0,3],"B##########BBOBBBBBBBWBBWW":[0,3],"W#####OOOOOOOOBWOOBOBOOBBB":[1,3],"BOOOBWOOBBWOOOWOOOOOOOOOOO":[1,3],"WOBBWOOOBWOOOOOOOOOOOOOOOO":[2,3],"W############OBW##WWW##OOB":[2,3],"B##########BWOOOBBWWBBBWWW":[1,3],"W############OBW##WWW##OOO":[2,3],"W##########OOOOOOOWOOOBBOO":[2,3],"B#####OOOWOOOOWOOOBBOOOOOO":[1,3],"WOBBWOOOWBOOOOOOOOOOOOOOOO":[3,3],"B##########BBOBBBBBOBBWWBB":[3,3],"WBWBOOWWBOOOBOOOOOOOOOOOOO":[2,3],"W##########OOOOOOWBWWOWWBB":[1,3],"W###########OOBW#OOWO#OOWW":[3,3],"BOOBBWOOBBWOOOWWOOOOOOOOOO":[2,3],"B###########OOBB#OBWW#OWWW":[1,3],"W############OBB##WBW##WWW":[3,3],"BOBOOOOBOOOOWOOOOWOOOOOOOO":[2,3],"WOBWOOOOWOOOOOOOOOOOOOOOOO":[2,3],"B#####OOOOOBBOOOBWWOOWWWOO":[2,3],"W##########BWOOOBWBOBBWWWW":[2,3],"WOOOOOOBBWOOWOBOOOOOOOOOOO":[2,3],"BOBBWOOWWBOOOOOOOOOOOOOOOO":[1,3],"B############OBW##OWW##OWW":[2,3],"W##########BWOWWBBWWOBBBWW":[2,3],"B############OBO##BOB##OBB":[2,3],"WOOBWOOOWOOOOOOOOOOOOOOOOO":[1,3],"BBBOOOBBOOOWWOOOWOOOOOOOOO":[2,3],"B############OBB##BBB##OBO":[3,3],"B##########BBOBOBBBWWBBBBB":[2,3],"B##########BWOOOBBOOOBBBOO":[3,3],"WOOOOOOOBWWOOOBWOOOOOOOOOO":[3,3],"B#####OOOOOOOOOOOOBWOOOBWO":[0,3],"B#####OOOOOOOOOOBBBBWBWWWW":[2,3],"W############OBO##WWB##WWW":[3,3],"WOOBWWOOWBWOOOBWOOOOOOOOOO":[3,3],"B#####OOOOOOOOWOOOBWBOOBBW":[0,3],"W###########OOBB#OOBO#OWBB":[1,3],"B##########BBOOOBBBOOBBBWO":[1,3],"BOBWOOOWOOOOBOOOOOOOOOOOOO":[0,3],"BOOBBWOOOBWOOOWBOOOOOOOOOO":[2,3],"WOOBBWOOWBBOOOBOOOOOOOOOOO":[1,3],"WOBWBWOBWBOOOOOOOOOOOOOOOO":[2,3],"B###########OOOO#OBBO#OBBW":[0,3],"WOBWBOOOOWOOOOBOOOOOOOOOOO":[2,3],"W###########OOWB#OOBB#OWWB":[2,3],"WOBBOOOOOOOOOOOOOOOOOOOOOO":[2,3],"B##########BBOOOBBBBOBBBBW":[2,3],"W############OBB##OWB##OOW":[2,3],"WOOOBWOOBWWOOOBWOOOOOOOOOO":[3,3],"W##########BBOOOBWBOOWWWOO":[2,3],"W############OBW##WWO##WWW":[2,3],"B##########OOOWOOOWOWBWWWW":[1,3],"B###########OOOO#OBBB#OBWW":[1,3],"B##########BBOBOBBBBBBBWWW":[2,3],"WOBWWWOWBWWOOOOOOOOOOOOOOO":[3,3],"B#####OOOOOOOOOOOOOWWOOOWW":[1,3],"BOOBBWOOWWBOOOOOOOOOOOOOOO":[0,3],"B##########OOOWOOBWOWOBWWW":[0,3],"W##########OOOBWOOBWOOOBWW":[3,3],"W##########OWOWWWWWWWWOWWW":[3,3],"W#####OOOOOOOOOOOWBWWWOWWW":[1,3],"B############OBB##BBB##OOB":[1,3],"W##########OOOOOBBWBOBWWBO":[3,3],"BOBBWWOOWOWOOOWWOOOOOOOOOO":[2,3],"BOOBWWOOBBWOOOWOOOOOOOOOOO":[2,3],"WOOBOOOOWOOOOOOOOOBOOOOOOO":[1,3],"B###########BOBB#BBBB#WWBW":[2,3],"B##########BWOOOBBWWBBBBBB":[3,3],"WOBOOOOWBOOOWOOOOOOOOOOOOO":[2,3],"B#####OOOOOOOOOOOOBWWOOBWB":[2,3],"BBBWOOWWWOOWWOOOOOOOOOOOOO":[2,3],"WBBWOOOWBOOOBOOOOOOOOOOOOO":[1,3],"W#####OOOOOOOOOOBWBWOBWWBO":[3,3],"B###########OOWW#OWOW#OOWB":[1,3],"BOOOOOOOOOOOOOOOOOOOOOOWWO":[0,3],"W###########OOBW#OOWW#OWWW":[1,3],"W############OOO##WWB##OWB":[1,3],"W############OWO##WWW##WBB":[1,3],"B###########BOBB#OBBB#BBBO":[3,3],"B############OBB##OBB##OBB":[2,3],"B############OBB##BBO##BOB":[3,3],"W###########WOWW#WWWO#WWWW":[2,3],"BOOOOOOOOOOOOOBWOOOOBOOOOW":[1,3],"B##########OOOOOOBWBWWWBBB":[2,3],"WOOBWOOOBBWOOOOOOOOOOOOOOO":[1,3],"B###########OOBO#BWWB#BBBB":[3,3],"WBBBOOOOBOOOOOOOOOOOOOOOOO":[1,3],"BBBBOOBBBOOBWOOOOOOOOOOOOO":[3,3],"B###########BOWB#OBBB#BBBB":[2,3],"WOBWOOOWWOOOBOOOOOOOOOOOOO":[2,3],"WBBBOOBWWOOWBOOOOOOOOOOOOO":[1,3],"WBWOOOWBBOOWWOOOOOOOOOOOOO":[2,3],"B###########OOWW#OBWW#OWWW":[3,3],"WBBOOOWBOOOBWOOOOOOOOOOOOO":[1,3],"WBOBOOWBWOOWBOOOOOOOOOOOOO":[1,3],"WOOOOOOOBOOOOOOOOOBWOOOOOO":[1,3],"BOOOOOOOOOOOOOBWOOOWOOOOOO":[2,3],"BBBBOOBBBOOWWOOOOOOOOOOOOO":[0,3],"B#####OOOOOBWOOOBWBOOBBWOO":[2,3],"B##########BBOBOBBBBBBBBBO":[2,3],"B##########OOOWOOOBWBOOBWB":[1,3],"W##########OOOOOOBWBOOBWBO":[1,3],"W###########OOBB#OWBO#OWBB":[2,3],"W############OBB##OOB##OOW":[2,3],"B##########BBOOOBWWBOBBWBB":[3,3],"BOOBBWOOWWWOOOOOOOOOOOOOOO":[0,3],"WBWOOOWBBOOWBOOOOOOOOOOOOO":[1,3],"BBBBOOWBWOOOWOOOOOOOOOOOOO":[1,3],"W###########WOWW#WWOW#WWWW":[3,3],"WBBWOOBBBOOWBOOOOOOOOOOOOO":[0,3],"B############OBB##BWW##OWW":[3,3],"WOOOOOOOOOOOBOOOWBBWOOOOOO":[0,3],"BBOOOOWOOOOWWOOOWBOOOOOOOO":[0,3],"B##########BBOBOBBBBBOBOBB":[3,3],"BOOOOOOOOOOOOOOOOOBWOOWBWO":[2,3],"WBBWOOOWWOOOBOOOOOOOOOOOOO":[1,3],"W######OOOO#OOOB#OOBB#OOBB":[2,3],"W###########OOBW#OWWW#OWBB":[2,3],"WOOBWWOOBWWOOOWWOOOOOOOOOO":[2,3]}};
+</script>
+<script>
+/* =====================================================================
+ *  围棋引擎（纯逻辑，不碰 DOM，可在 Node 里直接测试）
+ *  规则：中国规则（数子法）· 简单劫争 · 禁自杀 · 贴目 komi
+ *  AI  ：蒙特卡洛随机模拟（不填自己的眼）+ UCB1 分配思考时间
+ * ===================================================================== */
+const GoEngine = (function () {
+  "use strict";
+  const EMPTY = 0, BLACK = 1, WHITE = 2;
+  const DEFAULT_KOMI = 7.5;
+  const BOOK_R = 2;                       /* 棋谱用的局部棋形半径（5x5） */
+
+  /* ---------------- 棋谱：局部棋形 key ---------------- */
+  const SYM = (function () {
+    const out = [];
+    for (let m = 0; m < 8; m++) out.push([]);
+    for (let y = -BOOK_R; y <= BOOK_R; y++) {
+      for (let x = -BOOK_R; x <= BOOK_R; x++) {
+        const k = (y + BOOK_R) * (2 * BOOK_R + 1) + (x + BOOK_R);
+        const list = [[x, y], [x, -y], [-x, y], [-x, -y],
+                      [y, x], [y, -x], [-y, x], [-y, -x]];
+        list.forEach(function (p, mi) { out[mi][k] = p; });
+      }
+    }
+    return out;
+  })();
+  /* 以 i 为中心取 5x5 局部棋形，做 8 种对称归一化后取字典序最小的写法。
+   * O = 空点 / B = 黑 / W = 白 / # = 出界；最前面的 B 或 W 表示轮到谁下。 */
+  function patternKey(g, i, mover) {
+    const n = g.n, b = g.b, cx = i % n, cy = (i / n) | 0;
+    let best = null;
+    for (let m = 0; m < 8; m++) {
+      const map = SYM[m];
+      let s = "";
+      for (let k = 0; k < map.length; k++) {
+        const px = cx + map[k][0], py = cy + map[k][1];
+        if (px < 0 || py < 0 || px >= n || py >= n) s += "#";
+        else {
+          const v = b[py * n + px];
+          s += v === BLACK ? "B" : (v === WHITE ? "W" : "O");
+        }
+      }
+      if (best === null || s < best) best = s;
+    }
+    return (mover === BLACK ? "B" : "W") + best;
+  }
+  let BOOK = null, BOOK_MIN = 3;
+  function setBook(obj) {
+    if (obj && obj.entries) {
+      BOOK = obj.entries;
+      BOOK_MIN = obj.minGames || 3;
+      return Object.keys(BOOK).length;
+    }
+    BOOK = null;
+    return 0;
+  }
+  function getBook() { return BOOK; }
+
+  /* ---------------- 棋盘尺寸相关的邻居表 ---------------- */
+  const META = {};
+  function meta(n) {
+    if (META[n]) return META[n];
+    const len = n * n;
+    const nb = new Int32Array(len * 4);
+    const diag = new Int32Array(len * 4);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const i = y * n + x, k = i * 4;
+        nb[k] = x > 0 ? i - 1 : -1;
+        nb[k + 1] = x < n - 1 ? i + 1 : -1;
+        nb[k + 2] = y > 0 ? i - n : -1;
+        nb[k + 3] = y < n - 1 ? i + n : -1;
+        diag[k] = (x > 0 && y > 0) ? i - n - 1 : -1;
+        diag[k + 1] = (x < n - 1 && y > 0) ? i - n + 1 : -1;
+        diag[k + 2] = (x > 0 && y < n - 1) ? i + n - 1 : -1;
+        diag[k + 3] = (x < n - 1 && y < n - 1) ? i + n + 1 : -1;
+      }
+    }
+    META[n] = { n: n, len: len, nb: nb, diag: diag };
+    return META[n];
+  }
+
+  function nowMs() {
+    if (typeof performance !== "undefined" && performance.now) return performance.now();
+    return Date.now();
+  }
+  function yieldNow() {
+    return new Promise(function (r) { setTimeout(r, 0); });
+  }
+
+  /* ---------------- 棋盘 ---------------- */
+  function Board(n) {
+    const M = meta(n);
+    this.n = n;
+    this.len = n * n;
+    this.M = M;
+    this.komi = DEFAULT_KOMI;
+    this.b = new Int8Array(this.len);
+    this.empty = new Int32Array(this.len);
+    this.pos = new Int32Array(this.len);
+    this.emptyN = 0;
+    this.ko = -1;
+    this.toPlay = BLACK;
+    this.caps = [0, 0, 0];
+    this.seed = 88172645;
+    /* 复用的临时缓冲 */
+    this.stack = new Int32Array(this.len);
+    this.groupBuf = new Int32Array(this.len);
+    this.markS = new Int32Array(this.len);
+    this.markE = new Int32Array(this.len);
+    this.idS = 0;
+    this.idE = 0;
+    this.rebuildEmpty();
+  }
+  Board.prototype.rebuildEmpty = function () {
+    let k = 0;
+    for (let i = 0; i < this.len; i++) {
+      if (this.b[i] === EMPTY) { this.empty[k] = i; this.pos[i] = k; k++; }
+      else this.pos[i] = -1;
+    }
+    this.emptyN = k;
+  };
+  Board.prototype.addEmpty = function (i) {
+    this.empty[this.emptyN] = i;
+    this.pos[i] = this.emptyN;
+    this.emptyN++;
+  };
+  Board.prototype.removeEmpty = function (i) {
+    const idx = this.pos[i];
+    if (idx < 0) return;
+    const last = this.empty[--this.emptyN];
+    this.empty[idx] = last;
+    this.pos[last] = idx;
+    this.pos[i] = -1;
+  };
+  Board.prototype.rnd = function () {
+    let x = this.seed;
+    x ^= x << 13; x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;  x >>>= 0;
+    this.seed = x;
+    return x >>> 0;
+  };
+  Board.prototype.cloneFrom = function (src) {
+    this.b.set(src.b);
+    this.empty.set(src.empty);
+    this.pos.set(src.pos);
+    this.emptyN = src.emptyN;
+    this.ko = src.ko;
+    this.toPlay = src.toPlay;
+    this.caps[0] = src.caps[0]; this.caps[1] = src.caps[1]; this.caps[2] = src.caps[2];
+    this.komi = src.komi;
+    this.seed = (src.seed ^ 0x9e3779b9) >>> 0;
+  };
+  /* 求出 start 所属棋组；返回石子数，并把气数写到 this._libs、唯一气点写到 this._libPt */
+  Board.prototype.analyze = function (start) {
+    const b = this.b, nb = this.M.nb, g = this.groupBuf;
+    const markS = this.markS, markE = this.markE;
+    const color = b[start];
+    const idS = ++this.idS, idE = ++this.idE;
+    const st = this.stack;
+    let n = 0, libs = 0, libPt = -1, sp = 0;
+    st[sp++] = start;
+    markS[start] = idS;
+    while (sp > 0) {
+      const i = st[--sp];
+      g[n++] = i;
+      const k = i * 4;
+      for (let d = 0; d < 4; d++) {
+        const j = nb[k + d];
+        if (j < 0) continue;
+        const v = b[j];
+        if (v === EMPTY) {
+          if (markE[j] !== idE) { markE[j] = idE; libs++; libPt = j; }
+        } else if (v === color && markS[j] !== idS) {
+          markS[j] = idS;
+          st[sp++] = j;
+        }
+      }
+    }
+    this._count = n;
+    this._libs = libs;
+    this._libPt = libPt;
+    return n;
+  };
+  Board.prototype.removeStone = function (i) {
+    this.b[i] = EMPTY;
+    this.addEmpty(i);
+  };
+  /* 落子；非法返回 false（不改动棋盘） */
+  Board.prototype.tryPlay = function (i, color) {
+    const b = this.b;
+    if (i < 0 || i >= this.len || b[i] !== EMPTY) return false;
+    if (i === this.ko) return false;
+    const opp = 3 - color, nb = this.M.nb;
+    this.removeEmpty(i);
+    b[i] = color;
+    let capturedN = 0, lastCap = -1;
+    const k = i * 4;
+    for (let d = 0; d < 4; d++) {
+      const j = nb[k + d];
+      if (j < 0 || b[j] !== opp) continue;
+      this.analyze(j);
+      if (this._libs === 0) {
+        lastCap = j;
+        const cnt = this._count, gg = this.groupBuf;
+        for (let t = 0; t < cnt; t++) this.removeStone(gg[t]);
+        capturedN += cnt;
+      }
+    }
+    if (capturedN === 0) {
+      this.analyze(i);
+      if (this._libs === 0) {                 /* 自杀 */
+        b[i] = EMPTY;
+        this.addEmpty(i);
+        return false;
+      }
+      this.ko = -1;
+    } else if (capturedN === 1) {
+      this.analyze(i);
+      this.ko = (this._count === 1 && this._libs === 1) ? lastCap : -1;
+    } else {
+      this.ko = -1;
+    }
+    this.caps[color] += capturedN;
+    return true;
+  };
+  Board.prototype.isLegal = function (i, color) {
+    if (i < 0 || i >= this.len || this.b[i] !== EMPTY) return false;
+    const snap = Int8Array.from(this.b);
+    const keepKo = this.ko, c1 = this.caps[BLACK], c2 = this.caps[WHITE];
+    const ok = this.tryPlay(i, color);
+    this.b.set(snap);
+    this.rebuildEmpty();
+    this.ko = keepKo;
+    this.caps[BLACK] = c1;
+    this.caps[WHITE] = c2;
+    return ok;
+  };
+  /* 快速合法性判断（不复制棋盘）：自杀 / 劫争 / 已有子 */
+  Board.prototype.isLegalFast = function (i, color) {
+    const b = this.b, nb = this.M.nb;
+    if (i < 0 || i >= this.len || b[i] !== EMPTY) return false;
+    if (i === this.ko) return false;
+    const k = i * 4, opp = 3 - color;
+    for (let d = 0; d < 4; d++) {                 /* 旁边有空点 → 一定有气 */
+      const j = nb[k + d];
+      if (j >= 0 && b[j] === EMPTY) return true;
+    }
+    for (let d = 0; d < 4; d++) {                 /* 能提子 → 一定合法 */
+      const j = nb[k + d];
+      if (j < 0 || b[j] !== opp) continue;
+      this.analyze(j);
+      if (this._libs === 0) return true;
+    }
+    for (let d = 0; d < 4; d++) {                 /* 连上自己还有别的气 → 合法 */
+      const j = nb[k + d];
+      if (j < 0 || b[j] !== color) continue;
+      this.analyze(j);
+      if (this._libs >= 2) return true;
+    }
+    return false;                                  /* 其余情况是自杀 */
+  };
+  /* 真眼判断：用来在模拟里避免自己填眼 */
+  Board.prototype.isEye = function (i, color) {
+    const b = this.b, nb = this.M.nb, dg = this.M.diag, k = i * 4;
+    for (let d = 0; d < 4; d++) {
+      const j = nb[k + d];
+      if (j >= 0 && b[j] !== color) return false;
+    }
+    let empties = 0, offs = 0;
+    for (let d = 0; d < 4; d++) {
+      const j = dg[k + d];
+      if (j < 0) { offs++; continue; }
+      const v = b[j];
+      if (v === color) continue;
+      if (v === EMPTY) { empties++; continue; }
+      return false;
+    }
+    if (offs > 1) return false;
+    if (empties > 0 && offs > 0) return false;
+    if (empties > 1) return false;
+    return true;
+  };
+  /* 随机选一手（不填自己真眼）；没有可下返回 -1 */
+  Board.prototype.randomMove = function () {
+    const b = this.b, e = this.empty, n = this.emptyN, color = this.toPlay;
+    if (n <= 0) return -1;
+    const start = this.rnd() % n;
+    for (let t = 0; t < n; t++) {
+      const i = e[(start + t) % n];
+      if (b[i] !== EMPTY) continue;
+      /* 双方的真眼都不填：否则模拟里会把对方的活棋（有两眼的棋）吃掉，
+       * 归属概率会被极化，导致「活棋被判死、整盘算成一边」。 */
+      if (this.isEye(i, color)) continue;
+      if (this.isEye(i, 3 - color)) continue;
+      if (this.tryPlay(i, color)) return i;
+    }
+    return -1;
+  };
+  /* 只挑一手、不改变棋盘（给「随机对手」用） */
+  Board.prototype.pickRandom = function () {
+    const b = this.b, e = this.empty, n = this.emptyN, color = this.toPlay;
+    if (n <= 0) return -1;
+    const snapB = Int8Array.from(b);
+    const snapE = this.empty.slice(), snapP = this.pos.slice();
+    const eN = this.emptyN, ko = this.ko, c1 = this.caps[BLACK], c2 = this.caps[WHITE];
+    const start = this.rnd() % n;
+    let found = -1;
+    for (let t = 0; t < n; t++) {
+      const i = e[(start + t) % n];
+      if (b[i] !== EMPTY) continue;
+      if (this.isEye(i, color)) continue;
+      if (this.tryPlay(i, color)) { found = i; break; }
+    }
+    if (found >= 0) {
+      b.set(snapB);
+      this.empty.set(snapE);
+      this.pos.set(snapP);
+      this.emptyN = eN;
+      this.ko = ko;
+      this.caps[BLACK] = c1;
+      this.caps[WHITE] = c2;
+    }
+    return found;
+  };
+  /* 数子法：黑 = 黑子 + 只被黑包围的空点；白同理；返回黑减白再减贴目 */
+  Board.prototype.areaScore = function () {
+    const b = this.b, nb = this.M.nb, len = this.len;
+    const mark = this.markE, id = ++this.idE, st = this.stack;
+    let bl = 0, wh = 0, neutral = 0;
+    for (let i = 0; i < len; i++) {
+      if (b[i] === BLACK) { bl++; continue; }
+      if (b[i] === WHITE) { wh++; continue; }
+      if (mark[i] === id) continue;
+      let sp = 0, cnt = 0, touchB = false, touchW = false;
+      st[sp++] = i;
+      mark[i] = id;
+      while (sp > 0) {
+        const p = st[--sp];
+        cnt++;
+        const k = p * 4;
+        for (let d = 0; d < 4; d++) {
+          const j = nb[k + d];
+          if (j < 0) continue;
+          const v = b[j];
+          if (v === EMPTY) { if (mark[j] !== id) { mark[j] = id; st[sp++] = j; } }
+          else if (v === BLACK) touchB = true;
+          else touchW = true;
+        }
+      }
+      if (touchB && !touchW) bl += cnt;
+      else if (touchW && !touchB) wh += cnt;
+      else neutral += cnt;
+    }
+    return { black: bl, white: wh, neutral: neutral, komi: this.komi, score: bl - wh - this.komi };
+  };
+  /* 把每个点的归属写进 out（1 = 黑，-1 = 白，0 = 双方都可能） */
+  Board.prototype.ownerFill = function (out) {
+    const b = this.b, nb = this.M.nb, len = this.len;
+    const mark = this.markE, id = ++this.idE, st = this.stack;
+    for (let i = 0; i < len; i++) {
+      if (b[i] === BLACK) { out[i] = 1; continue; }
+      if (b[i] === WHITE) { out[i] = -1; continue; }
+      if (mark[i] === id) { out[i] = 0; continue; }
+      let sp = 0, cnt = 0, touchB = false, touchW = false;
+      const region = [];
+      st[sp++] = i;
+      mark[i] = id;
+      while (sp > 0) {
+        const p = st[--sp];
+        region.push(p);
+        cnt++;
+        const k = p * 4;
+        for (let d = 0; d < 4; d++) {
+          const j = nb[k + d];
+          if (j < 0) continue;
+          const v = b[j];
+          if (v === EMPTY) { if (mark[j] !== id) { mark[j] = id; st[sp++] = j; } }
+          else if (v === BLACK) touchB = true;
+          else touchW = true;
+        }
+      }
+      const val = (touchB && !touchW) ? 1 : ((touchW && !touchB) ? -1 : 0);
+      for (let t = 0; t < region.length; t++) out[region[t]] = val;
+    }
+    return out;
+  };
+
+  /* ---------------- 对局（带历史，可悔棋） ---------------- */
+  function newGame(size, komi) {
+    const n = size || 9;
+    const g = new Board(n);
+    g.komi = (komi == null ? DEFAULT_KOMI : komi);
+    g.hist = [];
+    g.passes = 0;
+    g.moveNo = 0;
+    g.lastMove = -1;
+    g.finished = false;
+    g.seed = (Date.now() ^ 0x5bf03635) >>> 0;
+    return g;
+  }
+  function cloneGame(g) {
+    const c = new Board(g.n);
+    c.cloneFrom(g);
+    c.komi = g.komi;
+    c.hist = g.hist ? g.hist.slice() : [];
+    c.passes = g.passes || 0;
+    c.moveNo = g.moveNo || 0;
+    c.lastMove = g.lastMove == null ? -1 : g.lastMove;
+    c.finished = !!g.finished;
+    return c;
+  }
+  function play(g, i) {
+    const color = g.toPlay;
+    const snap = Int8Array.from(g.b);
+    const koPrev = g.ko;
+    const caps0 = g.caps[BLACK], caps1 = g.caps[WHITE];
+    if (i != null && i >= 0) {
+      if (!g.tryPlay(i, color)) return { ok: false, msg: "这里不能下（自杀 / 劫争 / 已有子）" };
+      g.hist.push({ i: i, color: color, ko: koPrev, snap: snap, caps0: caps0, caps1: caps1, pass: 0 });
+      g.lastMove = i;
+      g.passes = 0;
+      g.moveNo++;
+      g.toPlay = 3 - color;
+      return { ok: true };
+    }
+    /* 停一手 */
+    g.hist.push({ i: -1, color: color, ko: koPrev, snap: snap, caps0: caps0, caps1: caps1, pass: 1 });
+    g.passes++;
+    g.moveNo++;
+    g.toPlay = 3 - color;
+    return { ok: true, pass: true };
+  }
+  function undo(g) {
+    const h = g.hist.pop();
+    if (!h) return false;
+    g.b.set(h.snap);
+    g.rebuildEmpty();
+    g.ko = h.ko;
+    g.caps[BLACK] = h.caps0;
+    g.caps[WHITE] = h.caps1;
+    g.toPlay = h.color;
+    g.moveNo = Math.max(0, g.moveNo - 1);
+    /* 重新计算连续停手次数与最后一手 */
+    g.passes = 0;
+    g.lastMove = -1;
+    for (let k = g.hist.length - 1; k >= 0; k--) {
+      if (g.lastMove < 0 && g.hist[k].i >= 0) g.lastMove = g.hist[k].i;
+    }
+    let p = 0;
+    for (let k = g.hist.length - 1; k >= 0; k--) {
+      if (g.hist[k].pass) p++;
+      else break;
+    }
+    g.passes = p;
+    return true;
+  }
+
+  /* ---------------- 随机模拟 ---------------- */
+  function playoutToEnd(sim, maxMoves) {
+    let passes = 0;
+    for (let m = 0; m < maxMoves; m++) {
+      const mv = sim.randomMove();
+      if (mv < 0) {
+        passes++;
+        if (passes >= 2) break;
+      } else {
+        passes = 0;
+      }
+      sim.toPlay = 3 - sim.toPlay;
+      if (sim.emptyN === 0) break;
+    }
+    return sim.areaScore().score;
+  }
+
+  /* ---------------- 形势判断 / 终局估算 ---------------- */
+  /* 从当前局面跑若干次随机模拟，统计每个点的归属概率与胜率 */
+  async function estimate(game, opts) {
+    opts = opts || {};
+    const budget = opts.budgetMs || 1200;
+    const maxSamples = opts.maxSamples || 40000;
+    const onProgress = opts.onProgress;
+    const n = game.n, len = game.len;
+    const sum = new Float64Array(len);
+    const buf = new Int8Array(len);
+    const sim = new Board(n);
+    let samples = 0, blackWins = 0, scoreSum = 0;
+    const deadline = nowMs() + budget;
+    while (nowMs() < deadline && samples < maxSamples) {
+      const batch = 6;
+      for (let b = 0; b < batch && samples < maxSamples; b++) {
+        sim.cloneFrom(game);
+        sim.seed = (game.seed + samples * 2654435761) >>> 0;
+        const sc = playoutToEnd(sim, 3 * len);
+        sim.ownerFill(buf);
+        for (let i = 0; i < len; i++) sum[i] += buf[i];
+        samples++;
+        scoreSum += sc;
+        if (sc > 0) blackWins++;
+      }
+      if (onProgress) onProgress(samples, blackWins);
+      await yieldNow();
+    }
+    const p = new Float32Array(len);
+    for (let i = 0; i < len; i++) p[i] = (sum[i] / samples + 1) / 2;   /* 黑棋占有概率 */
+    let disputed = 0, expScore = 0, expBlack = 0, expWhite = 0;
+    for (let i = 0; i < len; i++) {
+      if (p[i] > 0.3 && p[i] < 0.7) disputed++;
+      expScore += 2 * p[i] - 1;
+      expBlack += p[i];
+      expWhite += 1 - p[i];
+    }
+    expScore -= game.komi;
+    return {
+      p: p, samples: samples, disputed: disputed,
+      blackWinRate: samples ? blackWins / samples : 0.5,
+      expScore: expScore,
+      avgScore: samples ? scoreSum / samples : 0,
+      expBlack: expBlack, expWhite: expWhite
+    };
+  }
+  /* 用归属概率清掉死子，然后精确数子 */
+  function finalCount(game, p) {
+    const bc = new Board(game.n);
+    bc.cloneFrom(game);
+    bc.komi = game.komi;
+    const dead = [];
+    for (let i = 0; i < bc.len; i++) {
+      const v = bc.b[i];
+      if (v === BLACK && p[i] < 0.25) { bc.removeStone(i); dead.push(i); }
+      else if (v === WHITE && p[i] > 0.75) { bc.removeStone(i); dead.push(i); }
+    }
+    const sc = bc.areaScore();
+    return {
+      black: sc.black, white: sc.white, komi: sc.komi, neutral: sc.neutral,
+      diff: sc.black - sc.white, score: sc.score, dead: dead,
+      winner: sc.score > 0 ? BLACK : WHITE
+    };
+  }
+  /* 盘上还有多少个「可以争的点」：
+   * 空点、双方谁的真眼都不是（也就是说这块地方还没定）。
+   * 用来判断「是不是已经可以真数目了」——空点还多就只做形势判断。 */
+  function openPointCount(g) {
+    let n = 0;
+    for (let i = 0; i < g.len; i++) {
+      if (g.b[i] !== EMPTY) continue;
+      if (g.isEye(i, BLACK) || g.isEye(i, WHITE)) continue;
+      n++;
+    }
+    return n;
+  }
+
+  /* ---------------- AI ---------------- */
+  /* 候选点 + 静态先验（提子 / 救棋 / 靠近已有棋子 / 不轻易下边线） */
+  function candidates(g, color) {
+    const b = g.b, nb = g.M.nb, n = g.n, len = g.len;
+    const opp = 3 - color;
+    let hasStone = false;
+    for (let i = 0; i < len; i++) if (b[i] !== EMPTY) { hasStone = true; break; }
+    const out = [];
+    for (let i = 0; i < len; i++) {
+      if (b[i] !== EMPTY) continue;
+      if (g.isEye(i, color)) continue;
+      if (!g.isLegalFast(i, color)) continue;  /* 自杀 / 劫争 直接排除 */
+      const x = i % n, y = (i / n) | 0;
+      const k = i * 4;
+      let near = 0, cap = 0, saveAtari = 0, pushAtari = 0;
+      for (let d = 0; d < 4; d++) {
+        const j = nb[k + d];
+        if (j < 0) continue;
+        if (b[j] === opp) {
+          near++;
+          g.analyze(j);
+          if (g._libs === 1 && g._libPt === i) cap += g._count;
+          else if (g._libs === 1) pushAtari++;
+        } else if (b[j] === color) {
+          near++;
+          g.analyze(j);
+          if (g._libs === 1) saveAtari++;
+        }
+      }
+      const edge = (x === 0 || y === 0 || x === n - 1 || y === n - 1);
+      if (edge && near === 0 && hasStone) continue;      /* 空边上的单官基本是坏棋 */
+      let pri = 0.5;
+      if (cap) pri += 0.55 * Math.min(cap, 6);
+      if (saveAtari) pri += 0.25;
+      if (pushAtari) pri += 0.12;
+      if (near >= 2) pri += 0.12;
+      else if (near === 1) pri += 0.05;
+      if (x >= 2 && x <= n - 3 && y >= 2 && y <= n - 3) pri += 0.05;
+      if (!hasStone) pri += 0.05;
+      out.push({ i: i, pri: pri });
+    }
+    out.sort(function (a, b2) { return b2.pri - a.pri; });
+    return out;
+  }
+  /* 返回 { idx: 落子点(-1 = 停一手), sims, winRate, total } */
+  async function aiMove(game, opts) {
+    opts = opts || {};
+    const budget = opts.budgetMs || 2000;
+    const onProgress = opts.onProgress;
+    const color = game.toPlay;
+    const n = game.n, len = game.len;
+    let cands = candidates(game, color);
+    /* 停一手也是一个候选 */
+    cands = cands.concat([{ i: -1, pri: 0.45 }]);
+    if (cands.length === 1) return { idx: -1, sims: 0, winRate: 0.5, total: 0 };
+    /* 棋谱：局部棋形相似时，把自对弈里胜率高的落子加权 */
+    let bookHits = 0, bookInfo = [];
+    if (BOOK) {
+      for (let c = 0; c < cands.length; c++) {
+        if (cands[c].i < 0) continue;
+        const e = BOOK[patternKey(game, cands[c].i, color)];
+        if (!e || e[1] < BOOK_MIN) continue;
+        const wr = e[0] / e[1];
+        cands[c].book = { n: e[1], wr: wr };
+        cands[c].pri = Math.max(0.05, Math.min(1.35, cands[c].pri + (wr - 0.5) * 0.9));
+        bookHits++;
+        bookInfo.push({ i: cands[c].i, n: e[1], wr: wr });
+      }
+    }
+    const stat = [];
+    for (let i = 0; i < cands.length; i++) stat.push({ w: 0, s: 0 });
+    const sim = new Board(n);
+    const deadline = nowMs() + budget;
+    let total = 0;
+    function value(c) {
+      const st = stat[c];
+      return (st.w + cands[c].pri * 2) / (st.s + 2);
+    }
+    while (nowMs() < deadline) {
+      let k = 0, minS = Infinity;
+      for (let c = 0; c < cands.length; c++) {
+        if (stat[c].s < minS) { minS = stat[c].s; k = c; }
+      }
+      if (minS > 0) {
+        let bestV = -Infinity;
+        for (let c = 0; c < cands.length; c++) {
+          const v = value(c) + 0.75 * Math.sqrt(Math.log(total + 2) / stat[c].s);
+          if (v > bestV) { bestV = v; k = c; }
+        }
+      }
+      const mv = cands[k].i;
+      sim.cloneFrom(game);
+      sim.seed = (game.seed + total * 2246822519) >>> 0;
+      if (mv >= 0 && !sim.tryPlay(mv, color)) {
+        stat[k].s++;
+        total++;
+        continue;
+      }
+      sim.toPlay = 3 - color;              /* 下完这一手该对手走了 */
+      const sc = playoutToEnd(sim, 3 * len);
+      const win = (color === BLACK) ? (sc > 0 ? 1 : 0) : (sc < 0 ? 1 : 0);
+      stat[k].w += win;
+      stat[k].s++;
+      total++;
+      if ((total & 7) === 0) {
+        if (!opts.noYield) {
+          if (onProgress) onProgress(total, cands.length);
+          await yieldNow();
+        }
+        if (nowMs() >= deadline) break;
+      }
+    }
+    let bk = 0;
+    for (let c = 1; c < cands.length; c++) if (value(c) > value(bk)) bk = c;
+    /* 还有的是空位可下时，不要轻易停一手 */
+    if (cands[bk].i < 0) {
+      let alt = -1;
+      for (let c = 0; c < cands.length; c++) {
+        if (cands[c].i < 0) continue;
+        if (alt < 0 || value(c) > value(alt)) alt = c;
+      }
+      if (alt >= 0 && value(alt) > 0.42) bk = alt;
+    }
+    /* 盘上没什么好点、空位也不多时，积极停一手（该收官了） */
+    {
+      let passK = -1, bestK = -1;
+      for (let c = 0; c < cands.length; c++) {
+        if (cands[c].i < 0) passK = c;
+        else if (bestK < 0 || value(c) > value(bestK)) bestK = c;
+      }
+      const emptyPts = sim.emptyN;
+      const valuable = cands.some(function (c, idx) { return c.i >= 0 && c.pri >= 0.65; });
+      /* 只有「几乎没地方可下了」时才主动停手，避免该补棋的时候提前脱先 */
+      if (passK >= 0 && bestK >= 0 && !valuable && emptyPts <= Math.max(4, Math.floor(n * n * 0.07))) {
+        if (value(bestK) < value(passK) + 0.02) bk = passK;
+      }
+    }
+    return { idx: cands[bk].i, sims: stat[bk].s, winRate: value(bk), total: total,
+             bookHits: bookHits, bookInfo: bookInfo,
+             bookMove: cands[bk].book || null };
+  }
+
+  const API = {
+    EMPTY: EMPTY, BLACK: BLACK, WHITE: WHITE, DEFAULT_KOMI: DEFAULT_KOMI,
+    Board: Board, meta: meta,
+    patternKey: patternKey, setBook: setBook, getBook: getBook, BOOK_R: BOOK_R,
+    newGame: newGame, cloneGame: cloneGame, play: play, undo: undo,
+    playoutToEnd: playoutToEnd,
+    estimate: estimate, finalCount: finalCount,
+    openPointCount: openPointCount,
+    candidates: candidates, aiMove: aiMove,
+    areaScore: function (g) { return g.areaScore(); },
+    isEye: function (g, i, color) { return g.isEye(i, color); },
+    legalMoves: function (g, color) {
+      const out = [];
+      for (let i = 0; i < g.len; i++) {
+        if (g.b[i] !== EMPTY) continue;
+        const keepKo = g.ko, n0 = g.emptyN;
+        const b0 = Int8Array.from(g.b);
+        const ok = g.tryPlay(i, color);
+        g.b.set(b0);
+        g.emptyN = n0;
+        g.rebuildEmpty();
+        g.ko = keepKo;
+        if (ok) out.push(i);
+      }
+      return out;
+    }
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = API;
+  return API;
+})();
+</script>
+
+<script>
+/* =====================================================================
+ *  界面层：棋盘渲染（Canvas）+ 鼠标落子 + AI 调度 + 数目/形势判断面板
+ * ===================================================================== */
+(function () {
+  "use strict";
+  const E = GoEngine;
+  const BLACK = E.BLACK, WHITE = E.WHITE;
+  const $ = function (id) { return document.getElementById(id); };
+  const COLS = "ABCDEFGHJKLMNOPQRST";           /* 围棋习惯：不写 I */
+
+  let game = null;
+  let humanColor = BLACK;
+  let mode = "ai";                              /* ai | pvp */
+  let levelMs = 1800;
+  let showMap = false;
+  let showCoord = true;
+  let thinking = false;
+  let lastEstimate = null;                      /* {p, blackWinRate, disputed, samples, expScore} */
+  let resultShown = false;
+  let hover = -1;
+  let flashMsg = "";
+  let flashTimer = 0;
+
+  /* ---------------- 棋谱（自对弈学出来的局部形状 → 胜率） ---------------- */
+  let book = { v: 1, games: 0, msPerMove: 6, komi: 7.5, board: 9, minGames: 3, entries: {} };
+  let learning = false;
+  function bookCount() { return Object.keys(book.entries).length; }
+  function loadBook() {
+    let embedded = null;
+    if (typeof GO_BOOK !== "undefined" && GO_BOOK && GO_BOOK.entries) embedded = GO_BOOK;
+    let saved = null;
+    try {
+      const raw = localStorage.getItem("go_book");
+      if (raw) saved = JSON.parse(raw);
+    } catch (e) {}
+    const src = (saved && saved.entries && Object.keys(saved.entries).length > 0) ? saved : embedded;
+    if (src) {
+      book = src;
+      if (!book.entries) book.entries = {};
+      E.setBook(book);
+    } else {
+      book.entries = {};
+    }
+  }
+  function saveBook() {
+    /* localStorage 一般只有 5MB：棋形太多时先把「出现次数最少」的丢掉再存，
+     * 保证最可信（样本多）的那部分一定存得下。 */
+    try {
+      let text = JSON.stringify(book);
+      if (text.length > 4200000) {
+        const keys = Object.keys(book.entries);
+        keys.sort(function (a, b) { return book.entries[a][1] - book.entries[b][1]; });
+        let drop = 0;
+        while (text.length > 4200000 && drop < keys.length) {
+          for (let i = 0; i < 200 && drop < keys.length; i++) delete book.entries[keys[drop++]];
+          text = JSON.stringify(book);
+        }
+      }
+      localStorage.setItem("go_book", text);
+    } catch (e) { /* 隐私模式 / 存储被禁用时忽略 */ }
+  }
+  function updateBookPanel(info) {
+    $("bookSize").textContent = bookCount() + (book.games ? "（自对弈 " + book.games + " 局）" : "");
+    if (info) $("bookHit").textContent = info;
+  }
+  /* 页内自对弈学习：跑 N 局，把「局部形状 → 落子胜率」累加到棋谱里 */
+  async function learn(games) {
+    if (learning || thinking) return;
+    learning = true;
+    $("btnLearn20").disabled = true;
+    $("btnLearn60").disabled = true;
+    let blackWins = 0;
+    for (let gm = 0; gm < games; gm++) {
+      const g = E.newGame(9, 7.5);
+      g.seed = ((Math.random() * 0xffffffff) >>> 0);
+      const rec = [];
+      for (let mv = 0; mv < 200; mv++) {
+        if (g.passes >= 2) break;
+        const mover = g.toPlay;
+        const r = await E.aiMove(g, { budgetMs: 6, noYield: true });
+        if (r.idx >= 0) rec.push({ key: E.patternKey(g, r.idx, mover), mover: mover });
+        E.play(g, r.idx >= 0 ? r.idx : -1);
+      }
+      const sc = g.areaScore();
+      const winner = sc.score > 0 ? E.BLACK : E.WHITE;
+      if (winner === E.BLACK) blackWins++;
+      for (let k = 0; k < rec.length; k++) {
+        const e = book.entries[rec[k].key] || (book.entries[rec[k].key] = [0, 0]);
+        e[1]++;
+        if (rec[k].mover === winner) e[0]++;
+      }
+      book.games = (book.games || 0) + 1;
+      $("learnInfo").textContent = "自对弈学习中… " + (gm + 1) + " / " + games +
+        " 局（棋形 " + bookCount() + " 个，黑胜 " + blackWins + "）";
+      updateBookPanel();
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+    book.minGames = Math.max(2, Math.round(Math.max(20, book.games) / 120));
+    E.setBook(book);
+    saveBook();
+    learning = false;
+    $("btnLearn20").disabled = false;
+    $("btnLearn60").disabled = false;
+    $("learnInfo").textContent = "自对弈完成：棋谱 " + bookCount() + " 个棋形（累计 " +
+      book.games + " 局），黑胜率 " + Math.round(blackWins / games * 100) +
+      "%。棋谱已保存在浏览器里，AI 会立刻用上；也可以点「导出棋谱文件」存成 JSON。";
+  }
+
+  const cv = $("board"), ctx = cv.getContext("2d");
+  let CELL = 56, PAD = 40, SIZE = 9, DPR = 1;
+
+  /* ---------------- 画棋盘 ---------------- */
+  function layout() {
+    SIZE = game ? game.n : 9;
+    const vw = document.documentElement.clientWidth || 560;
+    const wrapW = $("boardWrap").parentElement.clientWidth || 560;
+    const cssSize = Math.max(260, Math.min(wrapW, vw - 34, 560));
+    DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2.5));
+    cv.width = Math.round(cssSize * DPR);
+    cv.height = Math.round(cssSize * DPR);
+    cv.style.width = cssSize + "px";
+    cv.style.height = cssSize + "px";
+    const margin = cssSize / (SIZE + 1.35);
+    PAD = margin;
+    CELL = (cssSize - margin * 2) / (SIZE - 1);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  function px(x) { return PAD + x * CELL; }
+  function xyOf(i) { return { x: i % SIZE, y: (i / SIZE) | 0 }; }
+  function starPoints(n) {
+    if (n === 9) return [[2, 2], [6, 2], [4, 4], [2, 6], [6, 6]];
+    if (n === 13) return [[3, 3], [9, 3], [6, 6], [3, 9], [9, 9]];
+    if (n === 19) return [[3, 3], [9, 3], [15, 3], [3, 9], [9, 9], [15, 9], [3, 15], [9, 15], [15, 15]];
+    return [[3, 3], [n - 4, 3], [((n - 1) / 2) | 0, ((n - 1) / 2) | 0], [3, n - 4], [n - 4, n - 4]];
+  }
+  function draw() {
+    if (!game) return;
+    const W = cv.width / DPR;
+    ctx.clearRect(0, 0, W, W);
+    /* 木纹底 */
+    const g1 = ctx.createLinearGradient(0, 0, W, W);
+    g1.addColorStop(0, "#e6c187");
+    g1.addColorStop(.45, "#dcb375");
+    g1.addColorStop(1, "#cfa464");
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, W, W);
+    ctx.strokeStyle = "rgba(120,80,30,.25)";
+    ctx.lineWidth = 1;
+    for (let k = 0; k < 9; k++) {
+      ctx.beginPath();
+      ctx.moveTo(0, (k + 0.5) * W / 9 + (k % 2 ? 1.5 : -1.5));
+      ctx.lineTo(W, (k + 0.5) * W / 9 + (k % 2 ? -1 : 2));
+      ctx.stroke();
+    }
+    /* 网格 */
+    ctx.strokeStyle = "#3a2b18";
+    ctx.lineWidth = Math.max(1, CELL * 0.03);
+    for (let i = 0; i < SIZE; i++) {
+      ctx.beginPath();
+      ctx.moveTo(px(0), px(i));
+      ctx.lineTo(px(SIZE - 1), px(i));
+      ctx.moveTo(px(i), px(0));
+      ctx.lineTo(px(i), px(SIZE - 1));
+      ctx.stroke();
+    }
+    /* 星位 */
+    const sp = starPoints(SIZE);
+    ctx.fillStyle = "#3a2b18";
+    for (let k = 0; k < sp.length; k++) {
+      ctx.beginPath();
+      ctx.arc(px(sp[k][0]), px(sp[k][1]), Math.max(2, CELL * 0.07), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    /* 坐标 */
+    if (showCoord) {
+      ctx.fillStyle = "rgba(70,50,20,.75)";
+      ctx.font = Math.round(CELL * 0.34) + "px system-ui,sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i < SIZE; i++) {
+        ctx.fillText(COLS[i], px(i), PAD * 0.48);
+        ctx.fillText(COLS[i], px(i), W - PAD * 0.48);
+        ctx.fillText(String(SIZE - i), PAD * 0.48, px(i));
+        ctx.fillText(String(SIZE - i), W - PAD * 0.48, px(i));
+      }
+    }
+    /* 形势/地盘估算 */
+    if (showMap && lastEstimate) {
+      const p = lastEstimate.p;
+      for (let i = 0; i < game.len; i++) {
+        if (game.b[i] !== E.EMPTY) continue;
+        const o = p[i];
+        const dev = Math.abs(o - 0.5) * 2;
+        if (dev < 0.12) continue;
+        const { x, y } = xyOf(i);
+        ctx.fillStyle = o > 0.5
+          ? "rgba(20,20,20," + (0.10 + 0.42 * dev).toFixed(3) + ")"
+          : "rgba(255,255,255," + (0.12 + 0.5 * dev).toFixed(3) + ")";
+        const s = CELL * 0.42;
+        ctx.fillRect(px(x) - s / 2, px(y) - s / 2, s, s);
+      }
+      /* 死子标记 */
+      if (lastEstimate.dead) {
+        ctx.strokeStyle = "#e05c5c";
+        ctx.lineWidth = 2;
+        for (let k = 0; k < lastEstimate.dead.length; k++) {
+          const q = xyOf(lastEstimate.dead[k]);
+          const r = CELL * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(px(q.x) - r, px(q.y) - r); ctx.lineTo(px(q.x) + r, px(q.y) + r);
+          ctx.moveTo(px(q.x) + r, px(q.y) - r); ctx.lineTo(px(q.x) - r, px(q.y) + r);
+          ctx.stroke();
+        }
+      }
+    }
+    /* 棋子 */
+    for (let i = 0; i < game.len; i++) {
+      const v = game.b[i];
+      if (v === E.EMPTY) continue;
+      const { x, y } = xyOf(i);
+      drawStone(px(x), px(y), v, CELL * 0.47);
+    }
+    /* 最后一手 */
+    if (game.lastMove >= 0 && game.b[game.lastMove] !== E.EMPTY) {
+      const q = xyOf(game.lastMove);
+      ctx.strokeStyle = game.b[game.lastMove] === BLACK ? "#ff7a5c" : "#e05c5c";
+      ctx.lineWidth = Math.max(2, CELL * 0.06);
+      ctx.beginPath();
+      ctx.arc(px(q.x), px(q.y), CELL * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    /* 鼠标预览 */
+    if (hover >= 0 && game.b[hover] === E.EMPTY && !thinking && isHumanTurn()) {
+      const q = xyOf(hover);
+      ctx.globalAlpha = 0.45;
+      drawStone(px(q.x), px(q.y), game.toPlay, CELL * 0.47);
+      ctx.globalAlpha = 1;
+    }
+    /* 提示信息 */
+    if (flashMsg) {
+      ctx.fillStyle = "rgba(20,20,20,.78)";
+      const w = ctx.measureText(flashMsg).width + 24;
+      ctx.fillRect(W / 2 - w / 2, W - PAD * 1.15, w, 30);
+      ctx.fillStyle = "#ffd98a";
+      ctx.font = "14px system-ui,sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(flashMsg, W / 2, W - PAD * 1.15 + 15);
+    }
+  }
+  function drawStone(x, y, color, r) {
+    ctx.beginPath();
+    ctx.arc(x + r * 0.12, y + r * 0.16, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,.22)";
+    ctx.fill();
+    const gr = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.15, x, y, r);
+    if (color === BLACK) { gr.addColorStop(0, "#6b6b6b"); gr.addColorStop(.5, "#242424"); gr.addColorStop(1, "#000"); }
+    else { gr.addColorStop(0, "#ffffff"); gr.addColorStop(.6, "#f0eeea"); gr.addColorStop(1, "#cbc8c2"); }
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = gr;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = color === BLACK ? "#000" : "rgba(120,120,120,.65)";
+    ctx.stroke();
+  }
+
+  /* ---------------- 状态 ---------------- */
+  function isHumanTurn() {
+    if (mode === "pvp") return true;
+    return game.toPlay === humanColor;
+  }
+  function updateStatus() {
+    const t = game.toPlay;
+    $("turnDot").className = "stoneDot" + (t === WHITE ? " w" : "");
+    let who = t === BLACK ? "黑棋" : "白棋";
+    if (mode === "ai") who += (t === humanColor ? "（你）" : "（AI）");
+    $("turnText").textContent = "轮到 " + who;
+    $("turnText").style.color = "";
+    $("moveNo").textContent = game.moveNo;
+    $("capB").textContent = game.caps[BLACK];
+    $("capW").textContent = game.caps[WHITE];
+    if (game.lastMove >= 0) {
+      const q = xyOf(game.lastMove);
+      $("lastMove").textContent = COLS[q.x] + (SIZE - q.y);
+    } else $("lastMove").textContent = "—";
+    $("btnUndo").disabled = thinking || game.hist.length === 0;
+    $("btnPass").disabled = thinking;
+    $("btnEnd").disabled = thinking;
+    $("btnEstimate").disabled = thinking;
+    $("btnShowMap").className = "btn small" + (showMap ? " on" : "");
+    $("btnShowCoord").className = "btn small" + (showCoord ? " on" : "");
+  }
+  function flash(msg) {
+    flashMsg = msg;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { flashMsg = ""; draw(); }, 1600);
+    draw();
+  }
+  function setProgress(v) { $("barIn").style.width = Math.max(0, Math.min(100, v * 100)) + "%"; }
+
+  /* ---------------- 落子 ---------------- */
+  function humanPlay(i) {
+    if (thinking || resultShown) return;
+    if (!isHumanTurn()) { flash("现在轮到对手"); return; }
+    const r = E.play(game, i);
+    if (!r.ok) { flash(r.msg || "这一手不能下"); return; }
+    lastEstimate = null;
+    draw(); updateStatus();
+    if (game.passes >= 2) { endGame(); return; }
+    maybeAI();
+  }
+  async function aiTurn() {
+    if (thinking || !game || mode !== "ai" || game.toPlay === humanColor) return;
+    thinking = true;
+    $("thinking").textContent = "AI 思考中… 0 局模拟";
+    updateStatus();
+    const t0 = Date.now();
+    const res = await E.aiMove(game, {
+      budgetMs: levelMs,
+      onProgress: function (total) {
+        const pct = Math.min(0.97, (Date.now() - t0) / levelMs);
+        setProgress(pct);
+        $("thinking").textContent = "AI 思考中… " + total + " 局模拟";
+      }
+    });
+    E.play(game, res.idx >= 0 ? res.idx : -1);
+    thinking = false;
+    setProgress(0);
+    const bookTxt = res.bookHits ? "，棋谱命中 " + res.bookHits + " 处" +
+      (res.bookMove ? "（这手在棋谱里 " + res.bookMove.n + " 局中胜率 " +
+        Math.round(res.bookMove.wr * 100) + "%）" : "") : "";
+    $("thinking").textContent = (res.idx < 0 ? "AI 停一手" : "AI 落子：" + coordName(res.idx)) +
+      "（" + res.total + " 局模拟，自评 " + Math.round(res.winRate * 100) + "%" + bookTxt + "）";
+    updateBookPanel(res.bookHits ? String(res.bookHits) + " 处" : "无");
+    lastEstimate = null;
+    draw(); updateStatus();
+    if (game.passes >= 2) endGame();
+  }
+  function maybeAI() {
+    if (mode !== "ai") { updateStatus(); return; }
+    if (game.toPlay === humanColor) { updateStatus(); return; }
+    setTimeout(function () { aiTurn(); }, 60);
+  }
+  function coordName(i) {
+    if (i < 0) return "停一手";
+    const q = xyOf(i);
+    return COLS[q.x] + (SIZE - q.y);
+  }
+
+  /* ---------------- 数目 / 形势判断 ---------------- */
+  async function runEstimate(label, budget) {
+    if (thinking) return null;
+    thinking = true;
+    $("thinking").textContent = "计算中… 0 局模拟";
+    updateStatus();
+    const t0 = Date.now();
+    const est = await E.estimate(game, {
+      budgetMs: budget,
+      maxSamples: 200000,
+      onProgress: function (n) {
+        $("thinking").textContent = "计算中… " + n + " 局模拟";
+        setProgress(Math.min(0.97, (Date.now() - t0) / budget));
+      }
+    });
+    const fc = E.finalCount(game, est.p);
+    est.dead = fc.dead;
+    est.final = fc;
+    lastEstimate = est;
+    thinking = false;
+    setProgress(0);
+    $("thinking").textContent = label + "完成：" + est.samples + " 局模拟";
+    updateStatus();
+    showResult(est, label);
+    draw();
+    return est;
+  }
+  function showResult(est, label) {
+    const fc = est.final;
+    const total = game.len;
+    const dispRatio = est.disputed / total;
+    /* 「能不能真数目」看盘上还剩多少可争的点，而不是看模拟出来的归属概率：
+     * 随机模拟里只要一方领先，几乎每个点都会算成领先方的，用那个判断会把
+     * 刚开局的中盘也误判成「已定型」，于是出现「一边 81 目、另一边 0 目」。 */
+    const openPts = E.openPointCount(game);
+    const openLimit = Math.max(4, Math.floor(total * 0.12));
+    const settled = (game.passes >= 2) || openPts <= openLimit;
+    const blackWin = fc.score > 0;
+    resultShown = true;
+    $("result").classList.remove("hidden");
+    $("resultTitle").textContent = settled
+      ? (label === "终局数目" ? "终局数目" : "形势判断（大致已定型）")
+      : "形势判断（盘上还有很多没定）";
+    $("rKomi").textContent = fc.komi;
+    const wr = Math.round(est.blackWinRate * 100);
+    $("rWin").textContent = "黑 " + wr + "% ／ 白 " + (100 - wr) + "%";
+    $("rDisp").textContent = openPts + " 点可以争（全盘 " + total + " 点）";
+    let note;
+    if (settled) {
+      $("rBlack").textContent = fc.black + " 目";
+      $("rWhite").textContent = fc.white + " 目";
+      $("rDiff").textContent = (fc.diff > 0 ? "黑多 " + fc.diff : (fc.diff < 0 ? "白多 " + (-fc.diff) : "持平"));
+      note = "盘面基本定型，已按中国规则清点死子后数子：黑 " + fc.black + " 目，白 " + fc.white +
+        " 目（含贴目 " + fc.komi + "），" + (blackWin ? "黑棋" : "白棋") + "胜 " + Math.abs(fc.diff) + " 目。" +
+        (fc.dead.length ? "（判死 " + fc.dead.length + " 颗子，棋盘上打了红叉）" : "") +
+        (openPts > 0 ? " 还有 " + openPts + " 点没走完，最后的目数可能还会变一点。" : "");
+    } else {
+      /* 还没定型：只报「现在已经围住的实空」+ 胜率估算，不给假的终局目数 */
+      const cur = game.areaScore();
+      const m = est.avgScore;
+      $("rBlack").textContent = cur.black + " 目（已围住）";
+      $("rWhite").textContent = cur.white + " 目（已围住）";
+      $("rDiff").textContent = "未定 " + cur.neutral + " 点";
+      note = "盘上还有 " + openPts + " 个点可以争（现在谁也围不住的中腹有 " + cur.neutral +
+        " 点），所以现在还不能真数目。" +
+        "你现在已经围住的是：黑 " + cur.black + " 目、白 " + cur.white + " 目。按 " + est.samples +
+        " 局随机模拟估下去，平均终局是" +
+        (Math.abs(m) < 1 ? "差不多" : (m > 0 ? "黑多 " + m.toFixed(1) + " 目" : "白多 " + (-m).toFixed(1) + " 目")) +
+        "，黑棋胜率约 " + wr + "%（" + (wr >= 55 ? "黑棋优势较明显" : (wr <= 45 ? "白棋优势较明显" : "双方势均力敌")) +
+        "）。把盘子走完（或者你再点一次「结束对局」）就能给出真正的目数。";
+      $("rWin").textContent = "黑 " + wr + "% ／ 白 " + (100 - wr) + "%（估算）";
+    }
+    $("resultNote").textContent = note;
+    $("legend").innerHTML = note;
+    if (showMap) draw();
+  }
+  async function endGame() {
+    if (thinking) return;
+    await runEstimate("终局数目", Math.max(1500, levelMs));
+  }
+
+  /* ---------------- 交互 ---------------- */
+  function toIndex(ev) {
+    const rect = cv.getBoundingClientRect();
+    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    const x = Math.round((mx - PAD) / CELL), y = Math.round((my - PAD) / CELL);
+    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return -1;
+    /* 距离交叉点太远就当没点中 */
+    const dx = mx - px(x), dy = my - px(y);
+    if (Math.sqrt(dx * dx + dy * dy) > CELL * 0.55) return -1;
+    return y * SIZE + x;
+  }
+  cv.addEventListener("click", function (ev) {
+    const i = toIndex(ev);
+    if (i < 0) return;
+    humanPlay(i);
+  });
+  cv.addEventListener("mousemove", function (ev) {
+    const i = toIndex(ev);
+    if (i !== hover) { hover = i; draw(); }
+  });
+  cv.addEventListener("mouseleave", function () { hover = -1; draw(); });
+
+  $("modeSeg").addEventListener("click", function (ev) {
+    const b = ev.target.closest("[data-mode]");
+    if (!b || thinking) return;
+    mode = b.dataset.mode;
+    [].forEach.call($("modeSeg").children, function (x) { x.classList.toggle("on", x === b); });
+    $("colorSeg").classList.toggle("hidden", mode !== "ai");
+    $("sideLabel").classList.toggle("hidden", mode !== "ai");
+    newGameKeepSettings();
+  });
+  $("colorSeg").addEventListener("click", function (ev) {
+    const b = ev.target.closest("[data-color]");
+    if (!b || thinking) return;
+    humanColor = +b.dataset.color;
+    [].forEach.call($("colorSeg").children, function (x) { x.classList.toggle("on", x === b); });
+    newGameKeepSettings();
+  });
+  $("levelSeg").addEventListener("click", function (ev) {
+    const b = ev.target.closest("[data-level]");
+    if (!b) return;
+    levelMs = +b.dataset.level;
+    [].forEach.call($("levelSeg").children, function (x) { x.classList.toggle("on", x === b); });
+  });
+  $("btnNew").addEventListener("click", function () { newGameKeepSettings(); });
+  $("btnNew2").addEventListener("click", function () { newGameKeepSettings(); });
+  $("btnUndo").addEventListener("click", function () {
+    if (thinking) return;
+    if (!game.hist.length) return;
+    E.undo(game);
+    if (mode === "ai" && game.toPlay !== humanColor && game.hist.length) E.undo(game);
+    lastEstimate = null; resultShown = false;
+    $("result").classList.add("hidden");
+    $("thinking").textContent = "";
+    draw(); updateStatus();
+  });
+  $("btnPass").addEventListener("click", function () {
+    if (thinking || resultShown) return;
+    if (!isHumanTurn()) { flash("现在轮到对手"); return; }
+    E.play(game, -1);
+    lastEstimate = null;
+    draw(); updateStatus();
+    if (game.passes >= 2) { endGame(); return; }
+    maybeAI();
+  });
+  $("btnEstimate").addEventListener("click", function () { runEstimate("形势判断", 1500); });
+  $("btnEnd").addEventListener("click", function () { endGame(); });
+  $("btnResign").addEventListener("click", function () {
+    if (thinking) return;
+    if (mode === "pvp") { flash("双人模式没有认输，直接「结束对局」即可"); return; }
+    resultShown = true;
+    $("result").classList.remove("hidden");
+    $("resultTitle").textContent = "你认输了";
+    $("rBlack").textContent = "—"; $("rWhite").textContent = "—";
+    $("rDiff").textContent = "—"; $("rWin").textContent = "—"; $("rDisp").textContent = "—";
+    $("resultNote").textContent = (humanColor === BLACK ? "白棋（AI）" : "黑棋（AI）") + "中盘胜。";
+    $("legend").textContent = "中盘认输，可以点「新的一局」重来。";
+  });
+  $("btnContinue").addEventListener("click", function () {
+    resultShown = false;
+    $("result").classList.add("hidden");
+    $("legend").innerHTML = "继续下棋：点击交叉点落子；随时可以再点「结束对局」重新数子。";
+  });
+  $("btnShowMap").addEventListener("click", function () {
+    showMap = !showMap;
+    if (showMap && !lastEstimate) { runEstimate("形势判断", 1500); return; }
+    updateStatus(); draw();
+  });
+  $("btnShowCoord").addEventListener("click", function () { showCoord = !showCoord; updateStatus(); draw(); });
+  $("btnHelp").addEventListener("click", function () {
+    $("legend").innerHTML =
+      "<b>玩法</b>：点击棋盘交叉点落子，不能下自杀手，提子与劫争都按标准规则判定。" +
+      "轮到谁就在右侧显示。<b>单人模式</b>里 AI 走你的对面（它的强度＝每手模拟的时间，" +
+      "越久越强）。<b>停一手</b>表示这手不下；双方连续停一手就自动进入数目。" +
+      "<b>结束对局</b>会先用随机模拟判断死活（死子打叉），再按中国规则数子；" +
+      "如果盘上还有很多没定的地方，会改成给出双方胜率估算。" +
+      "「显示地盘估算」可以在棋盘上看到每一处更可能归谁。<br><br>" +
+      "<b>棋谱</b>：可以点「自对弈 +20 / +60 局」让 AI 自己下棋并记谱（局部 5×5 棋形 → 落子胜率），" +
+      "存下来的棋谱 AI 会立刻使用：局部形状和棋谱相似、那手棋胜率高时就会优先考虑；" +
+      "「导出棋谱文件」可以把棋谱存成 JSON 文件。<br><br>" +
+      "规则：中国规则（数子法），黑先，白贴 7.5 目。";
+  });
+  $("btnLearn20").addEventListener("click", function () { learn(20); });
+  $("btnLearn60").addEventListener("click", function () { learn(60); });
+  $("btnExport").addEventListener("click", function () {
+    const data = JSON.stringify(book);
+    const blob = new Blob([data], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "go-book-" + bookCount() + "patterns.json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    $("learnInfo").textContent = "已导出棋谱文件：go-book-" + bookCount() + "patterns.json（" +
+      (data.length / 1024).toFixed(0) + " KB，含 " + bookCount() + " 个棋形、" + (book.games || 0) +
+      " 局自对弈数据），文件在浏览器的「下载」文件夹里。想把它装回游戏就用「导入棋谱文件」。";
+  });
+  /* 导入棋谱：把导出的 JSON 读回来，与当前棋谱合并，并存进浏览器记忆 */
+  $("btnImport").addEventListener("click", function () {
+    if (learning || thinking) return;
+    $("fileBook").click();
+  });
+  $("fileBook").addEventListener("change", function (ev) {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = function () {
+      try {
+        const obj = JSON.parse(String(fr.result));
+        if (!obj || !obj.entries || typeof obj.entries !== "object") throw new Error("文件里没有棋谱数据");
+        let added = 0, merged = 0, n = 0, w = 0;
+        for (const key in obj.entries) {
+          const v = obj.entries[key];
+          if (!v || !v.length) continue;
+          const gw = Math.max(0, v[0] | 0), gn = Math.max(0, v[1] | 0);
+          if (!gn) continue;
+          const cur = book.entries[key];
+          if (cur) { cur[0] += gw; cur[1] += gn; merged++; }
+          else { book.entries[key] = [gw, gn]; added++; }
+          w += gw; n += gn;
+        }
+        book.games = (book.games || 0) + (obj.games | 0);
+        if (obj.minGames) book.minGames = Math.max(2, Math.min(book.minGames || 3, obj.minGames | 0));
+        E.setBook(book);
+        saveBook();
+        updateBookPanel();
+        $("learnInfo").textContent = "已导入 " + f.name + "：新增 " + added + " 个棋形、合并 " + merged +
+          " 个（这份文件自带 " + n + " 局样本，该方胜 " + w + " 局）。现在棋谱共 " + bookCount() +
+          " 个棋形" + (book.games ? "、累计 " + book.games + " 局" : "") + "，已存入浏览器记忆，AI 立刻使用。";
+      } catch (e) {
+        $("learnInfo").textContent = "导入失败：" + ((e && e.message) || "文件格式不对") +
+          "。（需要本页「导出棋谱文件」导出的 JSON）";
+      }
+      ev.target.value = "";
+    };
+    fr.readAsText(f);
+  });
+  $("btnClearBook").addEventListener("click", function () {
+    if (learning) return;
+    book = { v: 1, games: 0, msPerMove: 6, komi: 7.5, board: 9, minGames: 3, entries: {} };
+    E.setBook(null);
+    try { localStorage.removeItem("go_book"); } catch (e) {}
+    updateBookPanel("—");
+    $("learnInfo").textContent = "棋谱已清空（内置棋谱也会一起停用，可以重新自对弈学习）。";
+  });
+  window.addEventListener("resize", function () { layout(); draw(); });
+
+  /* ---------------- 开局 ---------------- */
+  function newGameKeepSettings() {
+    game = E.newGame(9, 7.5);
+    lastEstimate = null;
+    resultShown = false;
+    thinking = false;
+    $("result").classList.add("hidden");
+    $("thinking").textContent = "";
+    $("colorSeg").classList.toggle("hidden", mode !== "ai");
+    $("sideLabel").classList.toggle("hidden", mode !== "ai");
+    layout();
+    updateStatus();
+    draw();
+    if (mode === "ai" && game.toPlay !== humanColor) maybeAI();   /* 玩家执白 → AI 先走 */
+  }
+
+  window.__go = { engine: E, getGame: function () { return game; }, draw: draw, newGame: newGameKeepSettings };
+  loadBook();
+  updateBookPanel("—");
+  newGameKeepSettings();
+})();
+</script>
+
+</body>
+</html>
